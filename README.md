@@ -5,7 +5,7 @@ Tento návod vám pomůže začít s aplikací pro detekci falešných zpráv. P
 # Ukoly pro backend (Arsen a Matěj)
 
 ## Popis
-Vaším úkolem je vytvořit nový endpoint v aplikaci, který bude generovat data fiktivního uživatele a vracet je ve formátu JSON. Pro generování dat použijte knihovnu `Faker`. Úkoly dělejte na Vaší příslušné větvi (branch) s vaším jménem. Co to je a jak se na to přepnout najdete v té příručce.
+Vaším úkolem je vytvořit nový endpoint v aplikaci, který bude generovat data fiktivního uživatele a vracet je ve formátu JSON. Pro generování dat použijte knihovnu `Faker`. Úkoly dělejte na Vaší příslušné větvi (branch) s vaším jménem. Co to je a jak se na to přepnout najdete v té příručce. Nezapomňte hlavně potom změny "pushnout" na github ať je vidí i ostatní.
 
 ## Požadavky
 - Endpoint by měl být dostupný na adrese `/generate-user`.
