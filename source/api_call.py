@@ -12,7 +12,7 @@ client = OpenAI(api_key=api_key)
 
 def get_response(prompt):
     response = client.responses.create(
-        model="gpt-4o",
+        model="gpt-4o-mini",
         tools=[{"type": "web_search_preview"}],
         input=[
         {
