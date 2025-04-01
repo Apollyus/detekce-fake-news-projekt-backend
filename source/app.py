@@ -4,13 +4,13 @@ from fastapi.responses import FileResponse
 import os
 import sys
 
-# Add the directory containing api_call.py to the Python path
-# This uses the current script's directory as reference
+# Add current directory to path explicitly
 current_dir = os.path.dirname(os.path.abspath(__file__))
-# Adjust '../other_directory' to match the relative path to your api_call.py
-sys.path.append(os.path.join(current_dir, './source'))
+sys.path.insert(0, current_dir)  # Insert at beginning for priority
 
-print("Python path:", sys.path)
+# Debug Python's search path
+print("Python search paths:", sys.path)
+print("Current directory:", os.getcwd())
 
 import api_call as oapi
 
