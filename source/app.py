@@ -8,10 +8,6 @@ import sys
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, current_dir)  # Insert at beginning for priority
 
-# Debug Python's search path
-print("Python search paths:", sys.path)
-print("Current directory:", os.getcwd())
-
 import api_call as oapi
 
 app = FastAPI()
@@ -36,6 +32,18 @@ async def favicon():
 def read_item(prompt: str):
     """
         Endpoint pro zpracovani textu pomoci OpenAI API.
+        - prompt: text, ktery chceme zpracovat
+    """
+    response = oapi.get_response(prompt)
+    return {"response": response, 
+            "output_text": response.output_text,
+            }
+
+# Add a query parameter endpoint for easier testing
+@app.get("/api")
+def read_item_query(prompt: str):
+    """
+        Endpoint pro zpracovani textu pomoci OpenAI API (query parameter version).
         - prompt: text, ktery chceme zpracovat
     """
     response = oapi.get_response(prompt)

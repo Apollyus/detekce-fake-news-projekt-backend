@@ -11,8 +11,6 @@ api_key = os.environ.get("OPENAI_API_KEY")
 client = OpenAI(api_key=api_key)
 
 def get_response(prompt):
-    prompt="Scientists found life on Mars. They discovered a new speciesof aliens."
-
     response = client.responses.create(
         model="gpt-4o",
         tools=[{"type": "web_search_preview"}],
