@@ -47,7 +47,7 @@ def get_summary(text, sentence_count=3):
     return " ".join(str(s) for s in summary)
 
 # Example usage
-if __name__ == "__main__":
+'''if __name__ == "__main__":
     # Example text for testing
     example_text = """
     Zatímco administrativaDonalda Trumpausiluje o snížení obchodního deficitu Spojených států v oblasti zboží, 
@@ -66,4 +66,4 @@ if __name__ == "__main__":
     # Generate summary with 2 sentences
     summary = get_summary(example_text, sentence_count=2)
     print("Summary:")
-    print(summary)
+    print(summary)'''

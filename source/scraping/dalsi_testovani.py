@@ -1,25 +1,55 @@
-# Import the summarizer
-from summarizer import get_summary
+from ufal.udpipe import Model, Pipeline, ProcessingError
+import re
 
-# Your text to summarize
-article_text = '''
-    Při srážce dvou osobních automobilů došlo ke třem zraněním neslučitelným se životem,“ popsal mluvčí karlovarské krajské záchranky Radek Hes.
+# Načteme model pro češtinu
+print("Loading UDPipe model...")
+model_path = "czech-pdt-ud-2.5-191206.udpipe"
+model = Model.load(model_path)
+if not model:
+    print(f"ERROR: Cannot load UDPipe model from {model_path}")
+    exit(1)
+else:
+    print("Model loaded successfully")
 
-Podle informací Novinek měli v jednom z aut jet tři lidé a v druhém pouze osmnáctiletý řidič. Nehodu jako jediná přežila sedmačtyřicetiletá řidička z vozidla s tříčlennou posádkou. Byla transportována vrtulníkem do plzeňské nemocnice.
+# Create pipeline with explicit parameters
+pipeline = Pipeline(model, "tokenize", Pipeline.DEFAULT, Pipeline.DEFAULT, "conllu")
+print("Pipeline created")
 
-Žena utrpěla podle dobře informovaného zdroje vážná a mnohačetná poranění, včetně obou dolních i horních končetin, hrudníku, hlavy a také čelisti.
+def generate_search_phrase(text: str):
+    # Process with error handling
+    error = ProcessingError()
+    processed = pipeline.process(text, error)
+    if error.occurred():
+        print(f"Error processing text: {error.message}")
+        return ""
+    
+    words = processed.split("\n")
+    
+    keywords = []
+    stop_words = ['v', 've', 'byla', 'bylo', 'je', 'a', 'na', 'o', 'za', 'pro', 's']  # Seznam irrelevantních slov
+    date = None  # Proměnná pro uložení datumu
+    
+    # Regulární výraz pro detekci datumu (např. březen 2025, 10. března 2025)
+    date_pattern = r"\b(\d{1,2}\.?\s?[a-zA-Z]+(?:\s?\d{4})?)\b|\b(\d{4})\b"
 
-Vozidlo, které řídil osmnáctiletý řidič.
+    # Hledáme datum v textu
+    date_match = re.search(date_pattern, text)
+    if date_match:
+        date = date_match.group(0)  # Získáme datum
+    
+    for word in words:
+        if word:
+            cols = word.split("\t")
+            if len(cols) >= 4:
+                lemma = cols[2]  # Základní tvar slova (lemma)
+                pos = cols[3]  # Gramatická kategorie (NOUN, PROPN, VERB, ADJ)
+                
+                # Filtrace slov, která jsou irrelevantní pro vyhledávání
+                if lemma.lower() not in stop_words and pos in ['NOUN', 'PROPN', 'VERB', 'ADJ']:
+                    keywords.append(lemma)  # Přidáme lemmu (základní tvar)
 
-„K nehodě mělo dojít tak, že mladý řidič osobního vozidla značky Volkswagen z dosud nezjištěných příčin přejel do protisměru, kde došlo ke střetu s protijedoucím vozidlem značky Ford,“ upřesnil příčiny nehody mluvčí karlovarské krajské policie Jan Bílek.
-
-„Při dopravní nehodě utrpěl osmnáctiletý řidič zranění neslučitelná se životem, kterým na místě bohužel podlehl,“ pokračoval policejní mluvčí.
-
-„Pětačtyřicetiletý spolujezdec a jednačtyřicetiletá spolujezdkyně z osobního vozidla značky Ford taktéž utrpěli zranění neslučitelná se životem, kterým na místě bohužel podlehli,“ dodal Hes. „Přesná příčina a okolnosti této tragické dopravní nehody jsou nadále v šetření kriminalistů,“ doplnil.
-
-Podle mluvčího karlovarských krajských hasičů Patrika Žižky zůstalo vozidlo Ford s tříčlennou posádkou po nehodě na vozovce, zatímco Volkswagen s mladým řidičem skončilo na střeše mezi vozovkou a objektem bývalé porcelánky. Kvůli vyšetřování příčin nehody byla silnice mezi Loktem a Horním Slavkovem uzavřena. V současné době je již průjezdná se sníženou rychlostí.
-'''
-
-# Get a summary with 3 sentences
-summary = get_summary(article_text, sentence_count=3)
-print(summary)
+    # Přidáme datum, pokud bylo nalezeno
+    if date:
+        keywords.append(date)
+    
+    return " ".join(keywords)
