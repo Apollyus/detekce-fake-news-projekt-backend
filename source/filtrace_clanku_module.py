@@ -27,7 +27,12 @@ def filter_relevant_articles(
     Returns:
         Seznam slovníků s relevantními články (title, link, snippet).
     """
-    articles = response_json.get("items", [])
+    # Handle both list and dict responses
+    if isinstance(response_json, dict):
+        articles = response_json.get("items", [])
+    else:
+        articles = response_json
+        
     relevant = []
 
     for article in articles:

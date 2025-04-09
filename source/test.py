@@ -1,38 +1,94 @@
-from filtrace_clanku_module import filter_relevant_articles, simple_similarity
+import os
+import json
+import re
+from datetime import datetime
+from dotenv import load_dotenv
+from mistralai import Mistral
 
-# Test data
-test_response = {
-    "items": [{'title': 'Zemřela zpěvačka a herečka Anna Julie Slováčková | ČeskéNoviny.cz', 'link': 'https://www.ceskenoviny.cz/zpravy/2657604', 'snippet': '3 days ago ... Praha - Zemřela zpěvačka a herečka Anna Julie Slováčková. Serveru Blesk.cz to potvrdil její otec, hudebník Felix Slováček.'}, {'title': 'Zemřela zpěvačka Anna Julie Slováčková — ČT24 — Česká televize', 'link': 'https://ct24.ceskatelevize.cz/clanek/kultura/zemrela-zpevacka-anna-julie-slovackova-359808', 'snippet': '3 days ago ... Po několikaletém boji s rakovinou zemřela zpěvačka Anna Julie Slováčková. Webu Blesk.cz to potvrdil její otec Felix Slováček.'}, {'title': 'Zpěvačka Anna K. slaví 60. narozeniny - iDNES.cz', 'link': 'https://www.idnes.cz/zpravy/revue/spolecnost/zpevacka-anna-k-sedesatiny-luciana-krecarova.A250103_093514_lidicky_zar', 'snippet': 'Jan 4, 2025 ... ... Anna K, Tomáš Vartecký, Rakovina, Vrchlabí, Divadlo Semafor. Nejčtenější. Zemřela Anna Julie Slováčková, vedla dlouhý boj s rakovinou · Tohle že\xa0...'}, {'title': 'Zemřela Anna Slováčková. Zákeřná nemoc byla nad její síly | Život v ...', 'link': 'https://zivotvcesku.cz/zemrela-anna-slovackova-zakerna-nemoc-byla-nad-jeji-sily/', 'snippet': '3 days ago ... 2025. V neděli 6. dubna přišla hudební scéna o výrazný hlas – ve věku 29 let zemřela zpěvačka a herečka Anna Julie Slováčková. Smutnou zprávu\xa0...'}, {'title': 'Po boji s rakovinou zemřela zpěvačka Anna Slováčková | Reflex.cz', 'link': 'https://www.reflex.cz/clanek/zpravy/129687/po-boji-s-rakovinou-zemrela-zpevacka-anna-slovackova.html', 'snippet': 'Po těžké a dlouhé léčbě rakoviny zemřela zpěvačka Anna Julie Slováčková. Informaci Blesku potvrdil její otec, hudebník Felix Slováček.'}, {'title': 'Ceny Anděl 2025: Zpěvačka Anna K. se opět usmívá, minulost ...', 'link': 'https://www.extra.cz/anna-k-je-jako-vymenena-opet-rozdava-usmevy-tomas-vartecky-je-minulosti-356e4', 'snippet': '4 days ago ... Na udílení Cen Anděl 2025 nejvíce zářila Anna K. Od té doby, co se zpěvačka objevila ve dveřích, tak se usmívala od ucha k uchu.'}, {'title': 'Zemřela zpěvačka a herečka Anna Slováčková, bylo jí 29 let', 'link': 'https://denikn.cz/minuta/1700134/', 'snippet': '3 days ago ... Dceři zpěvačky a herečky Dády Patrasové a saxofonisty Slováčka diagnostikovali lékaři rakovinu prsu ve 24 letech. Poté co se zotavila, jí lékaři\xa0...'}, {'title': 'Zemřela zpěvačka a herečka Anna Slováčková. Bylo jí 29 let ...', 'link': 'https://www.irozhlas.cz/kultura/hudba/zemrela-zpevacka-a-herecka-anna-slovackova-bylo-ji-29-let_2504062229_jar', 'snippet': 'V roce 2023 se jí ale vrátila v podobě nádoru na plicích. Aktualizováno Praha 22:29 6. 4. 2025 (Aktualizováno: 22:36 6. 4. 2025) Sdílet na Facebooku Sdílet\xa0...'}, {'title': 'Zemřela zpěvačka Anna Julie Slováčková. Žila naplno a tvořila do ...', 'link': 'https://radioblanik.cz/aktualne/zajimavosti/zemrela-zpevacka-anna-julie-slovackova-zila-naplno-a-tvorila-do-posledni-chvile', 'snippet': 'Žila naplno a tvořila do poslední chvíle. Zajímavosti. 7. 4. 2025. Zemřela zpěvačka Anna Julie Slováčková. Žila naplno a tvořila do poslední chvíle.'}, {'title': 'Anna Slováčková - Wikipedia', 'link': 'https://en.wikipedia.org/wiki/Anna_Slov%C3%A1%C4%8Dkov%C3%A1', 'snippet': '6 April 2025(2025-04-06) (aged 29). Prague, Czech Republic. Occupation(s) ... "Zemřela zpěvačka Anna Slováčková. Ve 29 letech podlehla rakovině". Seznam\xa0...'}]
-}
+# Načtení API klíče
+load_dotenv()
+api_key = os.environ["MISTRAL_API_KEY"]
+model = "mistral-small-latest"  # Changed to a valid model name
 
-# Test keywords
-keywords = ["Anna K zpěvačka zemřela"]
+client = Mistral(api_key=api_key)
 
-# Debug: Print similarity scores
-for article in test_response["items"]:
-    text = f"{article['title']} {article['snippet']}"
-    for kw in keywords:
-        similarity = simple_similarity(text, kw)
-        print(f"\nSimilarity check:")
-        print(f"Text: {text}")
-        print(f"Keyword: {kw}")
-        print(f"Similarity score: {similarity}")
+def check_and_generate_search_phrase(user_input: str):
+    # Get current date in readable format
+    current_date = datetime.now().strftime("%d. %m. %Y")
+    
+    prompt = f"""
+Zhodnoť následující tvrzení a rozhodni, zda dává smysl a je dostatečně konkrétní, aby se podle něj dalo hledat na internetu.
+Pokud ano, vytvoř z něj ideální krátkou frázi, která by se dala použít ve vyhledávači (např. Google).
+Pokud tvrzení nedává smysl, je příliš vágní nebo neobsahuje ověřitelné informace, napiš "INVALID".
 
-# Call the function with lower threshold
-results = filter_relevant_articles(
-    response_json=test_response,
-    keywords=keywords,
-    threshold=0.7  # Lowered threshold for testing
-)
+Aktuální datum: {current_date}
+Tvrzení: "{user_input}"
 
-'''print("\nResults found:", len(results))
+Při generování hledací fráze:
+1. Zohledni aktuální datum - zejména u zpráv, které se týkají aktuálního dění
+2. Vynech pomocná slova jako "byl", "bylo", "je" apod., pokud nejsou klíčové pro význam
+3. Zaměř se na klíčová fakta a konkrétní informace z tvrzení
+4. Optimalizuj frázi pro vyhledávače - používej relevantní klíčová slova
 
-# Print results
-for article in results:
-    print("\nNalezený relevantní článek:")
-    print(f"Titulek: {article['title']}")
-    print(f"Odkaz: {article['link']}")
-    print(f"Úryvek: {article['snippet']}")
-    print("-" * 50)'''
+Navíc vytvoř seznam 3-5 klíčových slov nebo krátkých frází, které nejlépe vystihují podstatu tvrzení.
+Tyto klíčová slova budou použita pro filtrování relevantních zpravodajských článků k ověření.
+Klíčová slova by měla:
+1. Obsahovat podstatná jména a vlastní jména z tvrzení
+2. Zachytit hlavní aktéry, místa, události nebo témata
+3. Být seřazena podle důležitosti (nejdůležitější první)
+4. Být dostatečně specifická, ale ne příliš dlouhá
+5. Pro každé klíčové slovo uveď 1-3 různé gramatické tvary (např. jednotné/množné číslo, různé pády), pokud je to možné
+6. Pro jména osob zahrň jak celé jméno, tak i samostatně příjmení
+7. Pro názvy událostí nebo organizací uveď jak plný název, tak i běžně používané zkratky
 
-print(results)
+Odpověz přesně v tomto JSON formátu bez jakýchkoliv dalších komentářů:
+{{
+  "search_query": "hledací fráze nebo prázdný řetězec",
+  "valid": true nebo false,
+  "confidence": číslo od 0.0 do 1.0,
+  "keywords": ["klíčové slovo 1", "klíčové slovo 2", "klíčové slovo 3", ...]
+}}
+"""
+
+    chat_response = client.chat.complete(
+        model=model,
+        messages=[
+            {
+                "role": "user",
+                "content": prompt.strip(),
+            },
+        ]
+    )
+
+    content = chat_response.choices[0].message.content.strip()
+    print("LLM odpověď:", content)
+
+    try:
+        # Extract the JSON part using regex to handle potential formatting issues
+        json_match = re.search(r'\{.*\}', content, re.DOTALL)
+        if json_match:
+            json_str = json_match.group(0)
+            # Replace JavaScript booleans with Python booleans
+            json_str = json_str.replace('true', 'True').replace('false', 'False')
+            # Use eval to handle the Python boolean values
+            result = eval(f"dict({json_str})")
+        else:
+            raise ValueError("No JSON found in response")
+            
+    except Exception as e:
+        print("Chyba při parsování odpovědi:", e)
+        result = {
+            "search_query": "",
+            "valid": False,
+            "confidence": 0.0,
+            "keywords": []
+        }
+
+    return result
+
+
+# 💡 TEST
+if __name__ == "__main__":
+    user_text = "Zemřela česká zpěvačka Anna K."
+    result = check_and_generate_search_phrase(user_text)
+    print("Výsledek:", result)
