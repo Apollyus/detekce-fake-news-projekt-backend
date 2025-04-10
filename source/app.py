@@ -40,7 +40,7 @@ def read_root():
 async def favicon():
     return FileResponse(os.path.join(os.path.dirname(__file__), "favicon.ico"))
 
-@app.get("/api/{prompt}")
+@app.get("/api/v1/{prompt}")
 def read_item(prompt: str):
     """
         Endpoint pro zpracovani textu pomoci OpenAI API.
@@ -52,7 +52,7 @@ def read_item(prompt: str):
             }
 
 # Add a query parameter endpoint for easier testing
-@app.get("/api")
+@app.get("/api/v1")
 def read_item_query(prompt: str):
     """
         Endpoint pro zpracovani textu pomoci OpenAI API (query parameter version).

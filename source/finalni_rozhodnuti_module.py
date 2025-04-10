@@ -26,21 +26,34 @@ def evaluate_claim(prompt, found_claims):
     response = client.chat.completions.create(
         model="gpt-4",
         messages=[
-            {
-                "role": "system",
-                "content": """You are a fact-checking AI assistant. Analyze the given claim against the provided evidence.
-                You must return your response in exactly this format (including the exact labels):
-                VERDICT: [must be exactly TRUE, FALSE, or UNCERTAIN]
-                CONFIDENCE: [number between 0 and 1]
-                SUPPORTING EVIDENCE: [list clear factual points that support the claim]
-                CONTRADICTING EVIDENCE: [list clear factual points that contradict the claim]
-                EXPLANATION: [provide brief, clear analysis]"""
-            },
-            {
-                "role": "user",
-                "content": f"Claim to evaluate: {prompt}\n\nFound evidence:\n{claims_text}"
-            }
-        ],
+    {
+        "role": "system",
+        "content": """You are a fact-checking AI assistant. You MUST respond in Czech language only.
+        Analyze the given claim against the provided evidence.
+        If there is insufficient or no concrete evidence provided, you should lean towards marking the claim as FALSE rather than UNCERTAIN.
+        
+        You must return your response in exactly this format (including the exact labels):
+        VERDICT: [must be exactly TRUE, FALSE, or UNCERTAIN]
+        CONFIDENCE: [number between 0 and 1]
+        SUPPORTING EVIDENCE: [v češtině vypiš faktické body podporující tvrzení]
+        CONTRADICTING EVIDENCE: [v češtině vypiš faktické body vyvracející tvrzení]
+        EXPLANATION: [v češtině poskytni stručnou a jasnou analýzu]
+        
+        Guidelines for verdicts:
+        - TRUE: Použij pouze když existují silné, přímé důkazy podporující tvrzení
+        - FALSE: Použij když důkazy odporují tvrzení NEBO když není dostatek konkrétních důkazů
+        - UNCERTAIN: Použij pouze když existují protichůdné důkazy stejné váhy
+        
+        When evaluating evidence:
+        - Nedostatek důkazů by měl vést k označení tvrzení jako FALSE
+        - Mimořádná tvrzení vyžadují mimořádné důkazy
+        - Zvažuj důvěryhodnost a konkrétnost poskytnutých důkazů"""
+    },
+    {
+        "role": "user",
+        "content": f"Claim to verify: {prompt}\n\nAvailable evidence:\n{claims_text}"
+    }
+],
         temperature=0.3,  # Lower temperature for more consistent formatting
         max_tokens=1000
     )
