@@ -1,6 +1,7 @@
-from fastapi import FastAPI, Depends, HTTPException, status, Query
+from fastapi import FastAPI, Depends, HTTPException, status, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from authlib.integrations.starlette_client import OAuth
 import os
 import sys
 
@@ -38,9 +39,19 @@ def is_long_enough_words(text: str, min_words: int) -> bool:
 
 Base.metadata.create_all(bind=engine)
 
+# Tento redirect URI musí být stejný jako ten, který zadáte v Google Developer Console
+redirect_uri = 'http://localhost:8000/auth/callback'
+
 ADMIN_PASSWORD = "vojtamavelkypele123"
 
 app = FastAPI()
+
+# Nastavení OAuth
+oauth = OAuth()
+oauth.init_app(app)
+
+# Google OAuth 2.0 client
+google = oauth.create_client('google')  # Registrujte u Google a použijte svůj Client ID a Secret
 
 origins = ["*"]
 
@@ -309,3 +320,25 @@ def list_keys(password: str = Query(...), db: Session = Depends(get_db)):
             } for k in keys
         ]
     }
+
+@app.get("/auth/google_login")
+async def login(request: Request):
+    redirect_uri = request.url_for('auth')  # Use request.url_for instead of url_for
+    return await google.authorize_redirect(request, redirect_uri)
+
+@app.route('/auth/callback')
+async def auth(request: Request, db: Session = Depends(get_db)):
+    # Získejte informace o uživatelském účtu z Google
+    token = await google.authorize_access_token(request)
+    user = await google.parse_id_token(request, token)
+
+    # Pokud uživatel neexistuje, vytvoříme ho
+    db_user = db.query(User).filter(User.email == user['email']).first()
+    if not db_user:
+        db_user = User(email=user['email'], username=user['name'])
+        db.add(db_user)
+        db.commit()
+
+    # Po přihlášení vytvořte JWT token pro uživatele
+    access_token = create_access_token(data={"sub": user['email']})  # vytvořte si vlastní funkci pro generování tokenu
+    return {"access_token": access_token, "token_type": "bearer"}
