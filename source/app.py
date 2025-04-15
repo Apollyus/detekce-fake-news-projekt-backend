@@ -1,11 +1,11 @@
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 import os
 import sys
 
 # Change relative imports to absolute or ensure correct module structure
-from source.models import Base, User  # Adjust import paths as needed
+from source.models import Base, User, RegistrationKey
 from source.database import SessionLocal, engine
 from source.summarizer_module import get_summary
 from source.filtrace_clanku_module import filter_relevant_articles
@@ -14,8 +14,8 @@ from source.vyhledavani_googlem_module import google_search
 from source.scraping_module import scrape_article
 from source.finalni_rozhodnuti_module import evaluate_claim
 from sqlalchemy.orm import Session
-from source.schemas import UserCreate, UserOut
-from source.auth import hash_password
+from source.schemas import UserCreate, UserOut, UserLogin, TokenResponse, UserCreateWithKey
+from source.auth import hash_password, verify_password, create_access_token, get_current_user
 
 # Add current directory to path explicitly
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -224,16 +224,44 @@ def fake_news_check_query(prompt: str):
 
 
 @app.post("/api/register", response_model=UserOut)
-def register(user: UserCreate, db: Session = Depends(get_db)):
+def register(user: UserCreateWithKey, db: Session = Depends(get_db)):
+    # Ověření klíče
+    reg_key = db.query(RegistrationKey).filter(RegistrationKey.key == user.registration_key).first()
+    if not reg_key or reg_key.used:
+        raise HTTPException(status_code=400, detail="Neplatný nebo použitý registrační klíč")
+
+    # Ověření e-mailu
     existing_user = db.query(User).filter(User.email == user.email).first()
     if existing_user:
         raise HTTPException(status_code=400, detail="Uživatel už existuje")
 
+    # Vytvoření uživatele
     new_user = User(
         email=user.email,
         hashed_password=hash_password(user.password)
     )
     db.add(new_user)
+
+    # Označení klíče jako použitý
+    reg_key.used = True
+
     db.commit()
     db.refresh(new_user)
     return new_user
+
+
+@app.post("/api/login", response_model=TokenResponse)
+def login(user_data: UserLogin, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == user_data.email).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Špatný email nebo heslo")
+
+    if not verify_password(user_data.password, user.hashed_password):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Špatný email nebo heslo")
+
+    token = create_access_token(data={"sub": str(user.id)})
+    return {"access_token": token, "token_type": "bearer"}
+
+@app.get("/api/me")
+def get_me(current_user: dict = Depends(get_current_user)):
+    return {"user_id": current_user["user_id"]}
