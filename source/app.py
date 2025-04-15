@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 import os
@@ -16,6 +16,7 @@ from source.finalni_rozhodnuti_module import evaluate_claim
 from sqlalchemy.orm import Session
 from source.schemas import UserCreate, UserOut, UserLogin, TokenResponse, UserCreateWithKey
 from source.auth import hash_password, verify_password, create_access_token, get_current_user
+from source.utils import generate_registration_key
 
 # Add current directory to path explicitly
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -36,6 +37,8 @@ def is_long_enough_words(text: str, min_words: int) -> bool:
     return len(words) >= min_words
 
 Base.metadata.create_all(bind=engine)
+
+ADMIN_PASSWORD = "vojtamavelkypele123"
 
 app = FastAPI()
 
@@ -265,3 +268,44 @@ def login(user_data: UserLogin, db: Session = Depends(get_db)):
 @app.get("/api/me")
 def get_me(current_user: dict = Depends(get_current_user)):
     return {"user_id": current_user["user_id"]}
+
+@app.post("/api/generate-keys")
+def generate_keys(
+    count: int = Query(1, ge=1, le=100),
+    password: str = Query(...),
+    db: Session = Depends(get_db)
+):
+    if password != ADMIN_PASSWORD:
+        raise HTTPException(status_code=403, detail="Neplatné heslo")
+
+    generated = []
+    existing_keys = db.query(RegistrationKey.key).all()
+    existing_set = {k[0] for k in existing_keys}
+
+    while len(generated) < count:
+        key = generate_registration_key()
+        if key not in existing_set:
+            db.add(RegistrationKey(key=key))
+            generated.append(key)
+            existing_set.add(key)
+
+    db.commit()
+    return {"generated_keys": generated}
+
+@app.get("/api/list-keys")
+def list_keys(password: str = Query(...), db: Session = Depends(get_db)):
+    if password != ADMIN_PASSWORD:
+        raise HTTPException(status_code=403, detail="Neplatné heslo")
+
+    keys = db.query(RegistrationKey).all()
+
+    return {
+        "keys": [
+            {
+                "key": k.key,
+                "used": k.used,
+                "used_by": k.used_by,
+                "created_at": k.created_at.isoformat() if k.created_at else None
+            } for k in keys
+        ]
+    }
