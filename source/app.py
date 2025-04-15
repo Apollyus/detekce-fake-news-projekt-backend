@@ -1,15 +1,21 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 import os
 import sys
-from .summarizer_module import get_summary
-from .filtrace_clanku_module import filter_relevant_articles
-from .generace_hledaci_vety_module import check_and_generate_search_phrase
-from .vyhledavani_googlem_module import google_search
-from .scraping_module import scrape_article
-from .finalni_rozhodnuti_module import evaluate_claim
 
+# Change relative imports to absolute or ensure correct module structure
+from source.models import Base, User  # Adjust import paths as needed
+from source.database import SessionLocal, engine
+from source.summarizer_module import get_summary
+from source.filtrace_clanku_module import filter_relevant_articles
+from source.generace_hledaci_vety_module import check_and_generate_search_phrase
+from source.vyhledavani_googlem_module import google_search
+from source.scraping_module import scrape_article
+from source.finalni_rozhodnuti_module import evaluate_claim
+from sqlalchemy.orm import Session
+from source.schemas import UserCreate, UserOut
+from source.auth import hash_password
 
 # Add current directory to path explicitly
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -17,10 +23,19 @@ sys.path.insert(0, current_dir)  # Insert at beginning for priority
 
 import api_call as oapi
 
+# Add this missing dependency function
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
 def is_long_enough_words(text: str, min_words: int) -> bool:
     words = text.strip().split()
     return len(words) >= min_words
 
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
@@ -206,3 +221,19 @@ def fake_news_check_query(prompt: str):
         "message": "Chyba při ověřování tvrzení.",
         "filtered_articles": filtered_articles
     }
+
+
+@app.post("/api/register", response_model=UserOut)
+def register(user: UserCreate, db: Session = Depends(get_db)):
+    existing_user = db.query(User).filter(User.email == user.email).first()
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Uživatel už existuje")
+
+    new_user = User(
+        email=user.email,
+        hashed_password=hash_password(user.password)
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    return new_user

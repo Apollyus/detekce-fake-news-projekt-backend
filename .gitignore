@@ -3,3 +3,4 @@
 /mynev
 /__pycache__
 *.pyc
+*.db
