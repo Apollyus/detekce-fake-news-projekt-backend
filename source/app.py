@@ -62,7 +62,7 @@ def read_item_query(prompt: str):
     return {"response": response, 
             "output_text": response.output_text,
             }
-
+            
 @app.get("/api/v2/{prompt}")
 def fake_news_check(prompt: str):
     """
@@ -159,54 +159,50 @@ def fake_news_check(prompt: str):
 @app.get("/api/v2")
 def fake_news_check_query(prompt: str):
     """
-        Endpoint pro zpracovani a overeni textu.
-        - prompt: text, ktery chceme zpracovat
+    Endpoint pro zpracovani a overeni textu.
+    - prompt: text, ktery chceme zpracovat
     """
-    if not is_long_enough_words(prompt, 20):
-        first_part = check_and_generate_search_phrase(prompt)
-        search_query = first_part["search_query"]
-        valid = first_part["valid"]
-        confidence = first_part["confidence"]
-        keywords = first_part["keywords"]
-        if not valid:
-            return {
+    first_part = check_and_generate_search_phrase(prompt)
+    search_query = first_part["search_query"]
+    valid = first_part["valid"]
+    keywords = first_part["keywords"]
+    
+    if not valid:
+        return {
             "status": "error",
             "message": "Zadaný text není validní pro ověření. Ujistěte se prosím, že:"
             "\n- Text obsahuje konkrétní tvrzení nebo fakta k ověření"
             "\n- Text je srozumitelný a dává smysl"
             "\n- Text není pouze názor nebo obecné prohlášení"
-        } 
-        else:
-            google_search_results = google_search(search_query)
-            if google_search_results:
-                # Filter relevant articles based on keywords
-                filtered_articles = filter_relevant_articles(google_search_results, keywords)
-                if filtered_articles:
-                    filtered_snippets = [article["snippet"] for article in filtered_articles]
-                    rozhodnuti = evaluate_claim(prompt, filtered_snippets)
-                    if rozhodnuti:
-                        return {
-                            "status": "success",
-                            "message": "Ověření bylo úspěšné.",
-                            "result": rozhodnuti,
-                            "filtered_articles": filtered_articles
-                        }
-                    else:
-                        return {
-                            "status": "error",
-                            "message": "Chyba při ověřování tvrzení.",
-                            "filtered_articles": filtered_articles
-                        }
-                else:
-                    return {
-                        "status": "error",
-                        "message": "Nenašli jsme žádné relevantní články pro ověření."
-                    }
-            else:
-                return {
-                    "status": "error",
-                    "message": "Nenašli jsme žádné výsledky pro zadaný dotaz."
-                }
-            return
-
-        return
+        }
+        
+    google_search_results = google_search(search_query)
+    if not google_search_results:
+        return {
+            "status": "error",
+            "message": "Nenašli jsme žádné výsledky pro zadaný dotaz."
+        }
+        
+    filtered_articles = filter_relevant_articles(google_search_results, keywords)
+    if not filtered_articles:
+        return {
+            "status": "error",
+            "message": "Nenašli jsme žádné relevantní články pro ověření."
+        }
+        
+    filtered_snippets = [article["snippet"] for article in filtered_articles]
+    rozhodnuti = evaluate_claim(prompt, filtered_snippets)
+    
+    if rozhodnuti:
+        return {
+            "status": "success",
+            "message": "Ověření bylo úspěšné.",
+            "result": rozhodnuti,
+            "filtered_articles": filtered_articles
+        }
+    
+    return {
+        "status": "error",
+        "message": "Chyba při ověřování tvrzení.",
+        "filtered_articles": filtered_articles
+    }
