@@ -1,7 +1,8 @@
 from fastapi import FastAPI, Depends, HTTPException, status, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from authlib.integrations.starlette_client import OAuth
+from starlette.middleware.sessions import SessionMiddleware
 import os
 import sys
 
@@ -48,12 +49,31 @@ app = FastAPI()
 
 # Nastavení OAuth
 oauth = OAuth()
-oauth.init_app(app)
+
+oauth.register(
+    name='google',
+    client_id=os.environ.get('GOOGLE_CLIENT_ID', ''),
+    client_secret=os.environ.get('GOOGLE_CLIENT_SECRET', ''),
+    server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
+    client_kwargs={
+        'scope': 'openid email profile'
+    }
+)
 
 # Google OAuth 2.0 client
 google = oauth.create_client('google')  # Registrujte u Google a použijte svůj Client ID a Secret
 
 origins = ["*"]
+
+# Add a secret key for session - should be a random string in production
+# This should ideally come from environment variables
+SECRET_KEY = "skibidi-sigma"  # Replace with a secure key in production
+
+# Add SessionMiddleware - MUST be added before other middleware
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=SECRET_KEY,
+)
 
 app.add_middleware(CORSMiddleware, allow_origins=origins,
                    allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
@@ -263,7 +283,6 @@ def register(user: UserCreateWithKey, db: Session = Depends(get_db)):
     db.refresh(new_user)
     return new_user
 
-
 @app.post("/api/login", response_model=TokenResponse)
 def login(user_data: UserLogin, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == user_data.email).first()
@@ -326,19 +345,41 @@ async def login(request: Request):
     redirect_uri = request.url_for('auth')  # Use request.url_for instead of url_for
     return await google.authorize_redirect(request, redirect_uri)
 
-@app.route('/auth/callback')
+@app.get('/auth/callback')
 async def auth(request: Request, db: Session = Depends(get_db)):
-    # Získejte informace o uživatelském účtu z Google
-    token = await google.authorize_access_token(request)
-    user = await google.parse_id_token(request, token)
-
-    # Pokud uživatel neexistuje, vytvoříme ho
-    db_user = db.query(User).filter(User.email == user['email']).first()
-    if not db_user:
-        db_user = User(email=user['email'], username=user['name'])
-        db.add(db_user)
-        db.commit()
-
-    # Po přihlášení vytvořte JWT token pro uživatele
-    access_token = create_access_token(data={"sub": user['email']})  # vytvořte si vlastní funkci pro generování tokenu
-    return {"access_token": access_token, "token_type": "bearer"}
+    try:
+        # Get token from Google
+        token = await google.authorize_access_token(request)
+        
+        # Pass the token when fetching user info
+        userinfo = await google.get('https://www.googleapis.com/oauth2/v3/userinfo', token=token)
+        user_data = userinfo.json()
+        
+        # Check if user exists and create if not
+        db_user = db.query(User).filter(User.email == user_data['email']).first()
+        if not db_user:
+            # Generate a random secure password for OAuth users
+            import secrets
+            import string
+            random_password = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(32))
+            hashed_random_password = hash_password(random_password)
+            
+            # Create user with the required hashed_password
+            db_user = User(
+                email=user_data['email'],
+                hashed_password=hashed_random_password
+            )
+            db.add(db_user)
+            db.commit()
+            db.refresh(db_user)
+        
+        # Create JWT token
+        access_token = create_access_token(data={"sub": user_data['email']})
+        
+        # Return token or redirect to frontend with token
+        #return {"access_token": access_token, "token_type": "bearer", "user": user_data}
+        return RedirectResponse(url=f"http://localhost:3000/googleLoginSuccess?token={access_token}&email={user_data['email']}")
+    except Exception as e:
+        # Add debugging to see what's happening
+        print(f"OAuth error: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"OAuth error: {str(e)}")
