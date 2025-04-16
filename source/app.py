@@ -112,14 +112,14 @@ def read_item_query(prompt: str):
             "output_text": response.output_text,
             }
             
-@app.get("/api/v2/{prompt}")
+@app.get("/api/v2/fake_news_check/{prompt}")
 def fake_news_check(prompt: str):
     """
     Endpoint pro zpracovani a overeni textu.
     - prompt: text, ktery chceme zpracovat
     """
     # Fix the condition (it was reversed)
-    if is_long_enough_words(prompt, 20):
+    if is_long_enough_words(prompt, 4):
         first_part = check_and_generate_search_phrase(prompt)
         search_query = first_part["search_query"]
         valid = first_part["valid"]
@@ -128,7 +128,7 @@ def fake_news_check(prompt: str):
         if not valid:
             return {
                 "status": "error",
-                "message": "Zadaný text není validní pro ověření..."
+                "message": "Zadaný text není validní pro ověření skibidi..."
             }
             
         google_search_results = google_search(search_query)
@@ -166,11 +166,16 @@ def fake_news_check(prompt: str):
         search_query = first_part["search_query"]
         valid = first_part["valid"]
         keywords = first_part["keywords"]
-        
+        #TADY JE CHYBA NEBO PROSTE NECO
         if not valid:
             return {
                 "status": "error",
-                "message": "Zadaný text není validní pro ověření..."
+                "message": "Zadaný text není validní pro ověření...............",
+                "prompt: " : str(prompt),
+                "first_part: " : str(first_part),
+                "search_query: " : str(search_query),
+                "valid: " : str(valid),
+                "keywords: " : str(keywords)
             }
             
         google_search_results = google_search(search_query)
@@ -205,7 +210,7 @@ def fake_news_check(prompt: str):
         }
     
 
-@app.get("/api/v2")
+@app.get("/api/v2/fake_news_check")
 def fake_news_check_query(prompt: str):
     """
     Endpoint pro zpracovani a overeni textu.
