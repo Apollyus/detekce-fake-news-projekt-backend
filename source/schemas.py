@@ -22,3 +22,13 @@ class TokenResponse(BaseModel):
 # schemas.py
 class UserCreateWithKey(UserCreate):
     registration_key: str
+
+class CompleteRegistrationRequest(BaseModel):
+    token: str
+    email: str
+    password: str
+    registrationKey: str
+
+class UserCheckRequest(BaseModel):
+    email: str
+    token: str

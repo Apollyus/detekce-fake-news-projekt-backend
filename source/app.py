@@ -16,7 +16,7 @@ from source.vyhledavani_googlem_module import google_search
 from source.scraping_module import scrape_article
 from source.finalni_rozhodnuti_module import evaluate_claim
 from sqlalchemy.orm import Session
-from source.schemas import UserCreate, UserOut, UserLogin, TokenResponse, UserCreateWithKey
+from source.schemas import UserCreate, UserOut, UserLogin, TokenResponse, UserCreateWithKey, CompleteRegistrationRequest, UserCheckRequest
 from source.auth import hash_password, verify_password, create_access_token, get_current_user
 from source.utils import generate_registration_key
 
@@ -39,6 +39,12 @@ def is_long_enough_words(text: str, min_words: int) -> bool:
     return len(words) >= min_words
 
 Base.metadata.create_all(bind=engine)
+
+# LOCALHOST 
+frontend_url = "http://localhost:3000"  # URL of your frontend application
+
+# PRODUCTION
+# frontend_url = "https://your-production-frontend-url.com"  # URL of your production frontend application
 
 # Tento redirect URI musí být stejný jako ten, který zadáte v Google Developer Console
 redirect_uri = 'http://localhost:8000/auth/callback'
@@ -363,16 +369,10 @@ async def auth(request: Request, db: Session = Depends(get_db)):
         # Check if user exists and create if not
         db_user = db.query(User).filter(User.email == user_data['email']).first()
         if not db_user:
-            # Generate a random secure password for OAuth users
-            import secrets
-            import string
-            random_password = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(32))
-            hashed_random_password = hash_password(random_password)
-            
-            # Create user with the required hashed_password
+            # Create user with empty password - indicating OAuth user without set password
             db_user = User(
                 email=user_data['email'],
-                hashed_password=hashed_random_password
+                hashed_password=""  # Empty password indicates OAuth user who needs to complete registration
             )
             db.add(db_user)
             db.commit()
@@ -382,9 +382,78 @@ async def auth(request: Request, db: Session = Depends(get_db)):
         access_token = create_access_token(data={"sub": user_data['email']})
         
         # Return token or redirect to frontend with token
-        #return {"access_token": access_token, "token_type": "bearer", "user": user_data}
         return RedirectResponse(url=f"http://localhost:3000/googleLoginSuccess?token={access_token}&email={user_data['email']}")
     except Exception as e:
         # Add debugging to see what's happening
         print(f"OAuth error: {str(e)}")
         raise HTTPException(status_code=400, detail=f"OAuth error: {str(e)}")
+    
+@app.post("/api/complete-google-registration")
+def complete_registration(request_data: CompleteRegistrationRequest, db: Session = Depends(get_db)):
+    """
+    Endpoint pro dokončení registrace pomocí Google přihlášení.
+    Ověří registrační klíč a nastaví heslo pro existujícího uživatele.
+    """
+    # Ověření klíče
+    reg_key = db.query(RegistrationKey).filter(RegistrationKey.key == request_data.registrationKey).first()
+    if not reg_key:
+        raise HTTPException(status_code=400, detail="Neplatný registrační klíč")
+    if reg_key.used:
+        raise HTTPException(status_code=400, detail="Registrační klíč byl již použit")
+
+    # Ověření uživatele
+    user = db.query(User).filter(User.email == request_data.email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Uživatel nenalezen")
+
+    # Aktualizace hesla uživatele
+    user.hashed_password = hash_password(request_data.password)
+    
+    # Označení klíče jako použitý
+    reg_key.used = True
+    reg_key.used_by = request_data.email
+    
+    db.commit()
+    
+    return {"status": "success", "message": "Registrace úspěšně dokončena"}
+
+@app.post("/api/check_user_password")
+def check_user_password(request_data: UserCheckRequest, db: Session = Depends(get_db)):
+    """
+    Endpoint pro kontrolu, zda uživatel má nastavené heslo.
+    Vrací true, pokud uživatel existuje a má heslo; false jinak.
+    """
+    try:
+        # Verify the token is valid first (optional but recommended for security)
+        # This depends on how you want to handle authentication - you could skip this step
+        # if you want to allow checking without authentication
+        
+        # Find the user
+        user = db.query(User).filter(User.email == request_data.email).first()
+        
+        if not user:
+            # User doesn't exist
+            return {
+                "message": "Uživatel nenalezen"
+                }
+        
+        # Check if the user has a valid password
+        # For OAuth users, we can consider auto-generated passwords as "no password"
+        # This assumes your OAuth implementation uses a specific pattern or length
+        # You might need to adapt this logic based on how you generate OAuth passwords
+        
+        # Simple check - if password exists and is not empty
+        has_password = bool(user.hashed_password and len(user.hashed_password) > 2)
+        
+        if has_password:
+            # User has a password
+            return {"needsPassword": False}
+        else:
+            # User does not have a password
+            # This could mean they are an OAuth user or just haven't set a password
+            return {"needsPassword": True}
+        
+    except Exception as e:
+        # Log the error but don't expose details
+        print(f"Error checking user password: {str(e)}")
+        raise HTTPException(status_code=500, detail="Chyba při kontrole uživatele")
