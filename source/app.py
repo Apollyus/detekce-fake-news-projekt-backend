@@ -457,3 +457,50 @@ def check_user_password(request_data: UserCheckRequest, db: Session = Depends(ge
         # Log the error but don't expose details
         print(f"Error checking user password: {str(e)}")
         raise HTTPException(status_code=500, detail="Chyba při kontrole uživatele")
+    
+@app.get("/api/validate_token")
+async def validate_token(request: Request):
+    """
+    Endpoint pro validaci JWT tokenu.
+    Vrací informace o tokenu a uživateli, pokud je token platný.
+    """
+    try:
+        # Extract the authorization header
+        auth_header = request.headers.get("Authorization")
+        
+        if not auth_header or not auth_header.startswith("Bearer "):
+            return {
+                "valid": False,
+                "error": "missing_token",
+                "message": "Authorization header missing or invalid format"
+            }
+            
+        token = auth_header.replace("Bearer ", "")
+        
+        # Use the existing token validation functionality
+        user_info = get_current_user(token)
+        
+        # If we got here, token is valid
+        return {
+            "valid": True,
+            "user": {
+                "id": user_info["user_id"],
+                "email": user_info.get("email")  # Include if available in token payload
+            }
+        }
+        
+    except Exception as e:
+        error_message = str(e)
+        error_type = "invalid_token"
+        
+        # Provide more specific error types based on common exceptions
+        if "expired" in error_message.lower():
+            error_type = "token_expired"
+        elif "invalid" in error_message.lower():
+            error_type = "token_invalid"
+            
+        return {
+            "valid": False,
+            "error": error_type,
+            "message": error_message
+        }
