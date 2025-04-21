@@ -41,13 +41,13 @@ def is_long_enough_words(text: str, min_words: int) -> bool:
 Base.metadata.create_all(bind=engine)
 
 # LOCALHOST 
-frontend_url = "http://localhost:3000"  # URL of your frontend application
+frontend_url = "https//www.bezfejku.cz/"  # URL of your frontend application
 
 # PRODUCTION
 # frontend_url = "https://your-production-frontend-url.com"  # URL of your production frontend application
 
 # Tento redirect URI musí být stejný jako ten, který zadáte v Google Developer Console
-redirect_uri = 'http://localhost:8000/auth/callback'
+redirect_uri = 'http://api.bezfejku.cz/auth/callback'
 
 ADMIN_PASSWORD = "vojtamavelkypele123"
 
