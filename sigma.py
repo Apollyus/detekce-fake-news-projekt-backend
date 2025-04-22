@@ -5,7 +5,7 @@ import os
 # Add the parent directory to path to make source package importable
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from source.database import SessionLocal
+from source.modules.database import SessionLocal
 from source.models import User, RegistrationKey  # Import your models
 
 def delete_item():

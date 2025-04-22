@@ -1,5 +1,5 @@
 from openai import OpenAI
-from source.config import config  # Import the config instance, not the module
+from source.modules.config import config  # Import the config instance, not the module
 
 api_key = config.OPENAI_API_KEY  # Use the API key from the config
 

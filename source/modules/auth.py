@@ -2,9 +2,9 @@ from datetime import datetime, timedelta
 from typing import Optional
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from fastapi import HTTPException, status, Depends
+from fastapi import Request, HTTPException
 from fastapi.security import OAuth2PasswordBearer
-from source.config import config  # Import the config instance, not the module
+from source.modules.config import config  # Import the config instance, not the module
 
 SECRET_KEY = config.SECRET_KEY  # Use the SECRET_KEY from the config
 if not SECRET_KEY:
@@ -31,18 +31,31 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 # ---- Ověření tokenu & získání uživatele ----
-def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
+async def get_current_user(request: Request):
     credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Neplatný přihlašovací token.",
+        status_code=401,
+        detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    
+    # Get authorization header
+    auth_header = request.headers.get("Authorization")
+    if not auth_header:
+        raise credentials_exception
+        
+    # Extract token from "Bearer <token>"
+    try:
+        scheme, token = auth_header.split()
+        if scheme.lower() != "bearer":
+            raise credentials_exception
+    except ValueError:
+        raise credentials_exception
+
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: str = payload.get("sub")
-        if user_id is None:
+        email: str = payload.get("sub")
+        if email is None:
             raise credentials_exception
-        # místo toho můžeš rovnou vrátit get_user_from_db(user_id)
-        return {"user_id": user_id}
+        return payload
     except JWTError:
         raise credentials_exception

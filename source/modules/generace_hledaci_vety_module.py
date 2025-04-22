@@ -1,7 +1,7 @@
 import re
 from datetime import datetime
 from mistralai import Mistral
-from source.config import config  # Import the config instance, not the module
+from source.modules.config import config  # Import the config instance, not the module
 
 api_key = config.MISTRAL_API_KEY  # Use the API key from the config
 model = "mistral-small-latest"  # Changed to a valid model name

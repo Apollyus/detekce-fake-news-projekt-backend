@@ -1,5 +1,5 @@
 import requests
-from source.config import config  # Import the config instance, not the module
+from source.modules.config import config  # Import the config instance, not the module
 
 # Get the API key from environment variables
 #api_key = os.getenv("GOOGLE_API_KEY")
