@@ -7,6 +7,11 @@ from source.modules.models import User
 from source.modules.config import config
 from authlib.integrations.starlette_client import OAuth
 
+def get_frontend_url():
+    """Returns the appropriate frontend URL based on environment"""
+    is_prod = os.getenv('ENVIRONMENT', 'development').lower() == 'production'
+    return "https://bezfejku.cz" if is_prod else "http://localhost:3000"
+
 router = APIRouter()
 oauth = OAuth()
 google = oauth.register(
@@ -45,9 +50,14 @@ async def auth(request: Request, db: Session = Depends(get_db)):
         
         # Create JWT token
         access_token = create_access_token(data={"sub": user_data['email']})
+
+        # Get frontend URL from config
+        #frontend_url = config.get_frontend_url()
+        frontend_url = "https://www.bezfejku.cz"
         
-        # Return token or redirect to frontend with token
-        return RedirectResponse(url=f"http://localhost:3000/googleLoginSuccess?token={access_token}&email={user_data['email']}")
+        return RedirectResponse(
+            url=f"{frontend_url}/googleLoginSuccess?token={access_token}&email={user_data['email']}"
+        )
     except Exception as e:
         # Add debugging to see what's happening
         print(f"OAuth error: {str(e)}")

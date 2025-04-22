@@ -6,6 +6,11 @@ load_dotenv()
 
 # Configuration class for easy access to all environment variables
 class Config:
+    def get_frontend_url(self):
+        """Returns the appropriate frontend URL based on environment"""
+        is_prod = os.getenv('ENVIRONMENT', 'development').lower() == 'production'
+        return "https://bezfejku.cz" if is_prod else "http://localhost:3000"
+
     # Security
     SECRET_KEY = os.environ.get("SECRET_KEY", "skibidi-sigma")  # Default only for development
     ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "vojtamavelkypele123")  # Default only for development
