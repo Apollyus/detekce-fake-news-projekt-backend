@@ -1,14 +1,12 @@
 import requests
-import dotenv
-import os
-
-# Load environment variables from .env file
-dotenv.load_dotenv()
+from source.config import config  # Import the config instance, not the module
 
 # Get the API key from environment variables
-api_key = os.getenv("GOOGLE_API_KEY")
-search_engine_id = os.getenv("GOOGLE_SEARCH_ENGINE_ID")
+#api_key = os.getenv("GOOGLE_API_KEY")
+#search_engine_id = os.getenv("GOOGLE_SEARCH_ENGINE_ID")
 
+api_key = config.GOOGLE_API_KEY  # Use the API key from the config
+search_engine_id = config.GOOGLE_SEARCH_ENGINE_ID  # Use the search engine ID from the config
 
 def google_search(query):
     # Base URL for Google Custom Search API

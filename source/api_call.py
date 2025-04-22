@@ -1,11 +1,7 @@
 from openai import OpenAI
-import os
-from dotenv import load_dotenv
+from source.config import config  # Import the config instance, not the module
 
-# Load environment variables from .env file
-load_dotenv()
-
-api_key = os.environ.get("OPENAI_API_KEY")
+api_key = config.OPENAI_API_KEY  # Use the API key from the config
 
 # Initialize with api_key as a named parameter
 client = OpenAI(api_key=api_key)

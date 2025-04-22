@@ -4,14 +4,9 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 from fastapi import HTTPException, status, Depends
 from fastapi.security import OAuth2PasswordBearer
-import os
-import dotenv
+from source.config import config  # Import the config instance, not the module
 
-# ---- Načtení .env souboru ----
-dotenv.load_dotenv()
-
-# ---- Nastavení ----
-SECRET_KEY = os.environ.get("SECRET_KEY")
+SECRET_KEY = config.SECRET_KEY  # Use the SECRET_KEY from the config
 if not SECRET_KEY:
     raise ValueError("SECRET_KEY must be set in the .env file")
 ALGORITHM = "HS256"

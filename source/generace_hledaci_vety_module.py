@@ -1,13 +1,9 @@
-import os
-import json
 import re
 from datetime import datetime
-from dotenv import load_dotenv
 from mistralai import Mistral
+from source.config import config  # Import the config instance, not the module
 
-# Načtení API klíče
-load_dotenv()
-api_key = os.environ["MISTRAL_API_KEY"]
+api_key = config.MISTRAL_API_KEY  # Use the API key from the config
 model = "mistral-small-latest"  # Changed to a valid model name
 
 client = Mistral(api_key=api_key)

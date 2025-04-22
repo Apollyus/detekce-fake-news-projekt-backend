@@ -15,6 +15,7 @@ from source.generace_hledaci_vety_module import check_and_generate_search_phrase
 from source.vyhledavani_googlem_module import google_search
 from source.scraping_module import scrape_article
 from source.finalni_rozhodnuti_module import evaluate_claim
+from source.config import config  # Import the config instance, not the module
 from sqlalchemy.orm import Session
 from source.schemas import UserCreate, UserOut, UserLogin, TokenResponse, UserCreateWithKey, CompleteRegistrationRequest, UserCheckRequest
 from source.auth import hash_password, verify_password, create_access_token, get_current_user
@@ -41,15 +42,16 @@ def is_long_enough_words(text: str, min_words: int) -> bool:
 Base.metadata.create_all(bind=engine)
 
 # LOCALHOST 
-frontend_url = "https//www.bezfejku.cz/"  # URL of your frontend application
+redirect_uri = config.REDIRECT_URI
+
 
 # PRODUCTION
 # frontend_url = "https://your-production-frontend-url.com"  # URL of your production frontend application
 
 # Tento redirect URI musí být stejný jako ten, který zadáte v Google Developer Console
-redirect_uri = 'http://api.bezfejku.cz/auth/callback'
+frontend_url = config.FRONTEND_URL
 
-ADMIN_PASSWORD = "vojtamavelkypele123"
+ADMIN_PASSWORD = config.ADMIN_PASSWORD
 
 app = FastAPI()
 
@@ -58,8 +60,8 @@ oauth = OAuth()
 
 oauth.register(
     name='google',
-    client_id=os.environ.get('GOOGLE_CLIENT_ID', ''),
-    client_secret=os.environ.get('GOOGLE_CLIENT_SECRET', ''),
+    client_id=config.GOOGLE_CLIENT_ID,
+    client_secret=config.GOOGLE_CLIENT_SECRET,
     server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
     client_kwargs={
         'scope': 'openid email profile'
@@ -73,7 +75,7 @@ origins = ["*"]
 
 # Add a secret key for session - should be a random string in production
 # This should ideally come from environment variables
-SECRET_KEY = "skibidi-sigma"  # Replace with a secure key in production
+SECRET_KEY = config.SECRET_KEY
 
 # Add SessionMiddleware - MUST be added before other middleware
 app.add_middleware(
@@ -353,7 +355,7 @@ def list_keys(password: str = Query(...), db: Session = Depends(get_db)):
 
 @app.get("/auth/google_login")
 async def login(request: Request):
-    redirect_uri = request.url_for('auth')  # Use request.url_for instead of url_for
+    #redirect_uri = request.url_for('auth')  # Use request.url_for instead of url_for
     return await google.authorize_redirect(request, redirect_uri)
 
 @app.get('/auth/callback')
@@ -504,3 +506,17 @@ async def validate_token(request: Request):
             "error": error_type,
             "message": error_message
         }
+
+@app.get("/api/check-env")
+def check_env():
+    """
+    Debug endpoint to check if environment variables are loaded correctly.
+    Remove or secure this endpoint in production.
+    """
+    return {
+        "GOOGLE_CLIENT_ID": config.GOOGLE_CLIENT_ID[:5] + "..." if config.GOOGLE_CLIENT_ID else "Not set",
+        "GOOGLE_CLIENT_SECRET": "Set" if config.GOOGLE_CLIENT_SECRET else "Not set",
+        "FRONTEND_URL": config.FRONTEND_URL,
+        "REDIRECT_URI": config.REDIRECT_URI,
+        # Don't return sensitive values like SECRET_KEY or ADMIN_PASSWORD
+    }
