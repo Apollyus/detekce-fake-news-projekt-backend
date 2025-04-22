@@ -78,3 +78,6 @@ Tento úkol vám pomůže procvičit si:
     ```sh
     python main.py
     ```
+
+
+docker run -d -p 8000:8000 --env-file /path/to/your/.env fakecheck-api
