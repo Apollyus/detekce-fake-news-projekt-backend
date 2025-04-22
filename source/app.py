@@ -71,7 +71,14 @@ oauth.register(
 # Google OAuth 2.0 client
 google = oauth.create_client('google')  # Registrujte u Google a použijte svůj Client ID a Secret
 
-origins = ["*"]
+origins = [
+    "https://www.bezfejku.cz",
+    "https://bezfejku.cz",
+    "http://bezfejku.cz",  # Jupyter notebook default port
+    "http://www.bezfejku.cz",  # Typical React dev server
+    "https://api.bezfejku.cz",
+    "http://api.bezfejku.cz",
+]
 
 # Add a secret key for session - should be a random string in production
 # This should ideally come from environment variables
