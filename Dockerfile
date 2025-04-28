@@ -26,5 +26,8 @@ COPY . .
 # Expose the port that FastAPI will run on
 EXPOSE 8000
 
+ENV ENVIRONMENT=prod
+
 # Command to run the application
-CMD ["uvicorn", "source.app:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+#CMD ["uvicorn", "source.app:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD ["python", "main.py"]

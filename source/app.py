@@ -91,6 +91,9 @@ from source.routes.user_routes import router as user_router
 from source.routes.admin_routes import router as admin_router
 from source.routes.token_routes import router as token_router
 from source.routes.auth_routes import router as auth_router
+from source.routes.form_routes import router as form_router
+from source.modules.database import engine, Base
+from source.modules.models import User, RegistrationKey, FormSubmission
 
 description = """
     # Fake News Detection API 🕵️‍♂️
@@ -162,6 +165,8 @@ else:
         }
     )
 
+Base.metadata.create_all(bind=engine)
+
 
 '''
 origins = [
@@ -196,6 +201,7 @@ app.include_router(user_router,      prefix="/api",    tags=["User"])
 app.include_router(admin_router,     prefix="/api",    tags=["Admin"])
 app.include_router(token_router,     prefix="/api",    tags=["Token"])
 app.include_router(auth_router, prefix="/auth", tags=["Auth"])
+app.include_router(form_router, prefix="/api/forms", tags=["Forms"])
 
 @app.get("/")
 def read_root():

@@ -17,3 +17,13 @@ class RegistrationKey(Base):
     used = Column(Boolean, default=False)
     used_by = Column(String, nullable=True)  # This column isn't in the database
     created_at = Column(DateTime, default=datetime.utcnow)
+
+class FormSubmission(Base):
+    __tablename__ = "form_submissions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    full_name = Column(String, nullable=False)
+    email = Column(String, nullable=False)
+    subject = Column(String, nullable=False)
+    message = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
