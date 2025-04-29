@@ -198,7 +198,7 @@ app.add_middleware(
 # Include routers
 app.include_router(fake_news_router, prefix="/api/v2", tags=["Fake News"])
 app.include_router(user_router,      prefix="/api",    tags=["User"])
-app.include_router(admin_router,     prefix="/api",    tags=["Admin"])
+app.include_router(admin_router,     prefix="/api/admin",    tags=["Admin"])
 app.include_router(token_router,     prefix="/api",    tags=["Token"])
 app.include_router(auth_router, prefix="/auth", tags=["Auth"])
 app.include_router(form_router, prefix="/api/forms", tags=["Forms"])
