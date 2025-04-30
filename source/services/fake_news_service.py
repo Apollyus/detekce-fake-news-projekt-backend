@@ -2,98 +2,118 @@ from source.modules.generace_hledaci_vety_module import check_and_generate_searc
 from source.modules.vyhledavani_googlem_module import google_search
 from source.modules.filtrace_clanku_module import filter_relevant_articles
 from source.modules.finalni_rozhodnuti_module import evaluate_claim
+from source.modules.telemetry_module import log_request_start, log_step_time, log_request_end, log_error, log_processing_data
 
 def is_long_enough_words(text: str, min_words: int) -> bool:
     words = text.strip().split()
     return len(words) >= min_words
 
 def process_fake_news(prompt: str):
-    if is_long_enough_words(prompt, 4):
-        first_part = check_and_generate_search_phrase(prompt)
-        search_query = first_part["search_query"]
-        valid = first_part["valid"]
-        keywords = first_part["keywords"]
-        
-        if not valid:
-            return {
-                "status": "error",
-                "message": "Zadaný text není validní pro ověření..."
-            }
+    # Start telemetry tracking
+    request_context = log_request_start(prompt)
+    
+    try:
+        if is_long_enough_words(prompt, 4):
+            # Track search phrase generation
+            first_part = check_and_generate_search_phrase(prompt)
+            log_step_time(request_context, "search_phrase_generation")
             
-        google_search_results = google_search(search_query)
-        if not google_search_results:
-            return {
-                "status": "error",
-                "message": "Nenašli jsme žádné výsledky pro zadaný dotaz."
-            }
+            search_query = first_part["search_query"]
+            valid = first_part["valid"]
+            keywords = first_part["keywords"]
             
-        filtered_articles = filter_relevant_articles(google_search_results, keywords)
-        if not filtered_articles:
-            return {
-                "status": "error",
-                "message": "Nenašli jsme žádné relevantní články pro ověření."
-            }
+            # Log the search query and keywords
+            log_processing_data(request_context, "search_query", search_query)
+            log_processing_data(request_context, "keywords", keywords)
+            log_processing_data(request_context, "is_valid_query", valid)
             
-        filtered_snippets = [article["snippet"] for article in filtered_articles]
-        rozhodnuti = evaluate_claim(prompt, filtered_snippets)
-        
-        if rozhodnuti:
-            return {
-                "status": "success",
-                "message": "Ověření bylo úspěšné.",
-                "result": rozhodnuti,
+            if not valid:
+                result = {
+                    "status": "error",
+                    "message": "Zadaný text není validní pro ověření..."
+                }
+                log_request_end(request_context, False, result)
+                return result
+                
+            # Track Google search
+            google_search_results = google_search(search_query)
+            log_step_time(request_context, "google_search")
+            
+            # Log search results summary
+            log_processing_data(request_context, "search_results_count", len(google_search_results) if google_search_results else 0)
+            if google_search_results:
+                # Log URLs without storing entire content
+                search_urls = [result.get("link", "") for result in google_search_results]
+                log_processing_data(request_context, "search_result_urls", search_urls)
+            
+            if not google_search_results:
+                result = {
+                    "status": "error",
+                    "message": "Nenašli jsme žádné výsledky pro zadaný dotaz."
+                }
+                log_request_end(request_context, False, result)
+                return result
+                
+            # Track article filtering
+            filtered_articles = filter_relevant_articles(google_search_results, keywords)
+            log_step_time(request_context, "article_filtering")
+            
+            # Log filtered articles summary
+            log_processing_data(request_context, "filtered_articles_count", len(filtered_articles) if filtered_articles else 0)
+            if filtered_articles:
+                # Log titles/URLs without storing entire content
+                filtered_titles = [article.get("title", "") for article in filtered_articles]
+                log_processing_data(request_context, "filtered_article_titles", filtered_titles)
+            
+            if not filtered_articles:
+                result = {
+                    "status": "error",
+                    "message": "Nenašli jsme žádné relevantní články pro ověření."
+                }
+                log_request_end(request_context, False, result)
+                return result
+                
+            filtered_snippets = [article["snippet"] for article in filtered_articles]
+            
+            # Track claim evaluation
+            rozhodnuti = evaluate_claim(prompt, filtered_snippets)
+            log_step_time(request_context, "claim_evaluation")
+            
+            # Log the evaluation decision
+            log_processing_data(request_context, "evaluation_result", rozhodnuti)
+            
+            if rozhodnuti:
+                result = {
+                    "status": "success",
+                    "message": "Ověření bylo úspěšné.",
+                    "result": rozhodnuti,
+                    "filtered_articles": filtered_articles
+                }
+                log_request_end(request_context, True, result)
+                return result
+            
+            result = {
+                "status": "error",
+                "message": "Chyba při ověřování tvrzení.",
                 "filtered_articles": filtered_articles
             }
-        
-        return {
+            log_request_end(request_context, False, result)
+            return result
+        else:
+            # Handle cases where the text is too short
+            result = {
+                "status": "error",
+                "message": "Zadaný text je příliš krátký pro ověření."
+            }
+            log_request_end(request_context, False, result)
+            return result
+
+    except Exception as e:
+        # Log any unexpected errors
+        log_error(request_context, e)
+        result = {
             "status": "error",
-            "message": "Chyba při ověřování tvrzení.",
-            "filtered_articles": filtered_articles
+            "message": f"Unexpected error: {str(e)}"
         }
-    else:
-        first_part = check_and_generate_search_phrase(prompt)
-        search_query = first_part["search_query"]
-        valid = first_part["valid"]
-        keywords = first_part["keywords"]
-        #TADY JE CHYBA NEBO PROSTE NECO
-        if not valid:
-            return {
-                "status": "error",
-                "message": "Zadaný text není validní pro ověření...............",
-                "prompt: " : str(prompt),
-                "first_part: " : str(first_part),
-                "search_query: " : str(search_query),
-                "valid: " : str(valid),
-                "keywords: " : str(keywords)
-            }
-            
-        google_search_results = google_search(search_query)
-        if not google_search_results:
-            return {
-                "status": "error",
-                "message": "Nenašli jsme žádné výsledky pro zadaný dotaz."
-            }
-            
-        filtered_articles = filter_relevant_articles(google_search_results, keywords)
-        if not filtered_articles:
-            return {
-                "status": "error",
-                "message": "Nenašli jsme žádné relevantní články pro ověření."
-            }
-            
-        filtered_snippets = [article["snippet"] for article in filtered_articles]
-        rozhodnuti = evaluate_claim(prompt, filtered_snippets)
-        
-        if rozhodnuti:
-            return {
-                "status": "success",
-                "message": "Ověření bylo úspěšné.",
-                "result": rozhodnuti,
-                "filtered_articles": filtered_articles
-            }
-        
-        return {
-            "status": "error",
-            "message": "Chyba při ověřování tvrzení.",
-            "filtered_articles": filtered_articles
-        }
+        log_request_end(request_context, False, result)
+        return result

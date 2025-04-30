@@ -29,5 +29,9 @@ class Config:
     GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
     GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
 
+    # Telemetry
+    TELEMETRY_ENABLED = os.environ.get("TELEMETRY_ENABLED", "true").lower() == "true"
+    TELEMETRY_LOG_LEVEL = os.environ.get("TELEMETRY_LOG_LEVEL", "INFO")
+
 # Create a singleton instance
 config = Config()
