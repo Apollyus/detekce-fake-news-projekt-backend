@@ -2,6 +2,7 @@ import time
 import json
 import os
 import logging
+import sqlite3
 from datetime import datetime
 from typing import Dict, Any, Optional
 from pathlib import Path
@@ -16,87 +17,170 @@ logging.basicConfig(
 
 logger = logging.getLogger('fake_news_telemetry')
 
-# Define telemetry data storage path
-TELEMETRY_FILE = Path("data/telemetry/telemetry_data.json")
+# Define database path
+DB_PATH = Path("data/telemetry/telemetry.db")
 
 # Ensure telemetry directory exists
-TELEMETRY_FILE.parent.mkdir(parents=True, exist_ok=True)
+DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
-# Initialize default metrics structure
-def init_metrics():
-    return {
-        "total_requests": 0,
-        "successful_requests": 0,
-        "failed_requests": 0,
-        "average_processing_time": 0,
-        "requests_by_hour": {},
-        "error_counts": {},
-        "recent_requests": []  # Will store the last 100 requests with full details
-    }
+# Database connection lock to prevent concurrent operations
+db_lock = threading.Lock()
 
-# File access lock to prevent concurrent writes
-file_lock = threading.Lock()
+def get_db_connection():
+    """Get a connection to the SQLite database"""
+    conn = sqlite3.connect(str(DB_PATH))
+    conn.row_factory = sqlite3.Row
+    return conn
 
-def read_metrics():
-    """Read metrics from JSON file"""
-    if TELEMETRY_FILE.exists():
-        try:
-            with file_lock:
-                with open(TELEMETRY_FILE, 'r') as file:
-                    return json.load(file)
-        except (json.JSONDecodeError, IOError) as e:
-            logger.error(f"Error reading telemetry data: {str(e)}")
-            return init_metrics()
-    else:
-        metrics = init_metrics()
-        write_metrics(metrics)
+def init_database():
+    """Initialize the database schema if it doesn't exist"""
+    with db_lock:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Create metrics table
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS metrics (
+            id INTEGER PRIMARY KEY,
+            total_requests INTEGER DEFAULT 0,
+            successful_requests INTEGER DEFAULT 0,
+            failed_requests INTEGER DEFAULT 0,
+            average_processing_time REAL DEFAULT 0.0
+        )
+        ''')
+        
+        # Create hourly metrics table
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS hourly_metrics (
+            id INTEGER PRIMARY KEY,
+            hour TEXT UNIQUE,
+            request_count INTEGER DEFAULT 0
+        )
+        ''')
+        
+        # Create error counts table
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS error_metrics (
+            id INTEGER PRIMARY KEY,
+            error_message TEXT UNIQUE,
+            count INTEGER DEFAULT 0
+        )
+        ''')
+        
+        # Create request logs table
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS request_logs (
+            request_id TEXT PRIMARY KEY,
+            timestamp TEXT,
+            prompt TEXT,
+            prompt_length INTEGER,
+            success INTEGER,
+            duration REAL,
+            steps TEXT,
+            processing_data TEXT,
+            result_type TEXT,
+            error_message TEXT
+        )
+        ''')
+        
+        # Initialize metrics record if it doesn't exist
+        cursor.execute('SELECT COUNT(*) FROM metrics')
+        if cursor.fetchone()[0] == 0:
+            cursor.execute('INSERT INTO metrics DEFAULT VALUES')
+        
+        conn.commit()
+        conn.close()
+
+# Initialize database on module import
+init_database()
+
+def get_metrics():
+    """Get current telemetry metrics from database"""
+    with db_lock:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Get main metrics
+        cursor.execute('SELECT * FROM metrics WHERE id = 1')
+        metrics = dict(cursor.fetchone())
+        
+        # Get hourly metrics
+        cursor.execute('SELECT hour, request_count FROM hourly_metrics')
+        metrics["requests_by_hour"] = {row["hour"]: row["request_count"] for row in cursor.fetchall()}
+        
+        # Get error counts
+        cursor.execute('SELECT error_message, count FROM error_metrics')
+        metrics["error_counts"] = {row["error_message"]: row["count"] for row in cursor.fetchall()}
+        
+        # Get recent requests (last 100)
+        cursor.execute('''
+        SELECT * FROM request_logs 
+        ORDER BY timestamp DESC 
+        LIMIT 100
+        ''')
+        metrics["recent_requests"] = []
+        for row in cursor.fetchall():
+            request = dict(row)
+            # Deserialize JSON fields
+            request["steps"] = json.loads(request["steps"])
+            request["processing_data"] = json.loads(request["processing_data"])
+            metrics["recent_requests"].append(request)
+        
+        conn.close()
         return metrics
 
-def write_metrics(metrics_data):
-    """Write metrics to JSON file"""
-    try:
-        with file_lock:
-            with open(TELEMETRY_FILE, 'w') as file:
-                json.dump(metrics_data, file, indent=2)
-    except IOError as e:
-        logger.error(f"Error writing telemetry data: {str(e)}")
-
-def update_metrics(update_function):
-    """Update metrics in a thread-safe way"""
-    with file_lock:
-        metrics = read_metrics()
-        update_function(metrics)
-        write_metrics(metrics)
+def update_db_metrics(update_function):
+    """Update metrics in a thread-safe way using a provided function"""
+    with db_lock:
+        conn = get_db_connection()
+        update_function(conn)
+        conn.commit()
+        conn.close()
 
 def log_request_start(prompt: str) -> Dict[str, Any]:
     """Log the start of a request and return request metadata"""
     request_id = f"{int(time.time())}-{hash(prompt) % 10000}"
     start_time = time.time()
+
+    # Log to telemetry.log file with truncated prompt (first 100 chars)
+    truncated_prompt = prompt[:100] + "..." if len(prompt) > 100 else prompt
+    logger.info(f"Request {request_id} started: prompt_length={len(prompt)}, prompt=\"{truncated_prompt}\"")
     
     # Update metrics
-    def update_start_metrics(metrics):
-        # Get hour for hourly metrics
+    def update_start_metrics(conn):
+        cursor = conn.cursor()
+        
+        # Increment total requests
+        cursor.execute('UPDATE metrics SET total_requests = total_requests + 1 WHERE id = 1')
+        
+        # Update hourly metrics
         hour = datetime.now().strftime("%Y-%m-%d-%H")
-        if hour not in metrics["requests_by_hour"]:
-            metrics["requests_by_hour"][hour] = 0
-        metrics["requests_by_hour"][hour] += 1
-        metrics["total_requests"] += 1
+        cursor.execute('''
+        INSERT INTO hourly_metrics (hour, request_count) 
+        VALUES (?, 1)
+        ON CONFLICT(hour) DO UPDATE SET request_count = request_count + 1
+        ''', (hour,))
     
-    update_metrics(update_start_metrics)
+    update_db_metrics(update_start_metrics)
     
     # Create request context with timing and metadata
     return {
         "request_id": request_id,
         "start_time": start_time,
-        "prompt": prompt,  # Save the original user prompt
+        "prompt": prompt,
         "prompt_length": len(prompt),
         "steps": {},
-        "processing_data": {}  # To store keywords, search phrases, etc.
+        "processing_data": {}
     }
 
 def log_step_time(request_context: Dict[str, Any], step_name: str) -> None:
     """Log the time taken for a specific step"""
     current_time = time.time()
+    duration = current_time - request_context.get("step_start_time", request_context["start_time"])
+    
+    # Log to telemetry.log file
+    logger.debug(f"Step {step_name} completed for request {request_context['request_id']}: duration={duration:.3f}s")
+    
     request_context["steps"][step_name] = {
         "end_time": current_time,
         "duration": current_time - request_context.get("step_start_time", request_context["start_time"])
@@ -118,57 +202,146 @@ def log_request_end(request_context: Dict[str, Any], success: bool, result: Dict
         "timestamp": datetime.now().isoformat(),
         "prompt": request_context["prompt"],
         "prompt_length": request_context["prompt_length"],
-        "success": success,
+        "success": 1 if success else 0,
         "duration": total_duration,
-        "steps": request_context["steps"],
-        "processing_data": request_context["processing_data"],
+        "steps": json.dumps(request_context["steps"]),
+        "processing_data": json.dumps(request_context["processing_data"]),
         "result_type": result.get("status"),
         "error_message": None if success else result.get("message")
     }
     
     # Update metrics with this request
-    def update_end_metrics(metrics):
+    def update_end_metrics(conn):
+        cursor = conn.cursor()
+        
+        # Update success/failure counts
         if success:
-            metrics["successful_requests"] += 1
+            cursor.execute('UPDATE metrics SET successful_requests = successful_requests + 1 WHERE id = 1')
         else:
-            metrics["failed_requests"] += 1
+            cursor.execute('UPDATE metrics SET failed_requests = failed_requests + 1 WHERE id = 1')
             
             # Track error type
             error_message = result.get("message", "Unknown error")
-            if error_message not in metrics["error_counts"]:
-                metrics["error_counts"][error_message] = 0
-            metrics["error_counts"][error_message] += 1
+            cursor.execute('''
+            INSERT INTO error_metrics (error_message, count) 
+            VALUES (?, 1)
+            ON CONFLICT(error_message) DO UPDATE SET count = count + 1
+            ''', (error_message,))
         
         # Update average processing time
-        total_requests = metrics["successful_requests"] + metrics["failed_requests"]
-        if total_requests > 0:
-            metrics["average_processing_time"] = (
-                (metrics["average_processing_time"] * (total_requests - 1) + total_duration) / total_requests
-            )
+        cursor.execute('''
+        UPDATE metrics 
+        SET average_processing_time = 
+            (average_processing_time * (total_requests - 1) + ?) / total_requests 
+        WHERE id = 1
+        ''', (total_duration,))
         
-        # Keep last 100 requests
-        metrics["recent_requests"].insert(0, request_record)
-        if len(metrics["recent_requests"]) > 100:
-            metrics["recent_requests"] = metrics["recent_requests"][:100]
+        # Insert request log
+        cursor.execute('''
+        INSERT INTO request_logs 
+        (request_id, timestamp, prompt, prompt_length, success, duration, 
+         steps, processing_data, result_type, error_message) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            request_record["request_id"],
+            request_record["timestamp"],
+            request_record["prompt"],
+            request_record["prompt_length"],
+            request_record["success"],
+            request_record["duration"],
+            request_record["steps"],
+            request_record["processing_data"],
+            request_record["result_type"],
+            request_record["error_message"]
+        ))
+        
+        # Maintain retention policy - keep only last 100 records
+        cursor.execute('''
+        DELETE FROM request_logs 
+        WHERE request_id NOT IN (
+            SELECT request_id FROM request_logs 
+            ORDER BY timestamp DESC 
+            LIMIT 100
+        )
+        ''')
     
-    update_metrics(update_end_metrics)
+    update_db_metrics(update_end_metrics)
     
-    # Log the full request information
-    logger.info(json.dumps(request_record))
-
+    # Log the full request information with verdict and confidence if available
+    log_message = f"Request {request_context['request_id']} completed: success={success}, duration={total_duration:.2f}s"
+    
+    # Extract verdict information from different possible locations in the result
+    verdict = "UNKNOWN"
+    confidence = 0.0
+    
+    if success:
+        # Try to extract verdict directly from result
+        if isinstance(result.get("result"), dict) and "verdict" in result["result"]:
+            # Case 1: verdict is in result["result"]["verdict"]
+            verdict = result["result"]["verdict"]
+            confidence = result["result"].get("confidence", 0.0)
+        elif isinstance(result.get("result"), str):
+            # Case 2: result["result"] is directly the verdict string
+            verdict = result["result"]
+        elif "data" in result and isinstance(result["data"], dict):
+            if "evaluation_result" in result["data"]:
+                # Case 3: older format with data.evaluation_result
+                eval_result = result["data"]["evaluation_result"]
+                verdict = eval_result.get("verdict", verdict)
+                confidence = eval_result.get("confidence", confidence)
+    
+    log_message += f", verdict={verdict}, confidence={confidence:.2f}"
+    
+    logger.info(log_message)
+    
 def log_error(request_context: Dict[str, Any], error: Exception, step: Optional[str] = None) -> None:
     """Log an error that occurred during processing"""
     logger.error(f"Error in request {request_context['request_id']} at step {step}: {str(error)}")
     
     # Track error type
-    def update_error_metrics(metrics):
+    def update_error_metrics(conn):
+        cursor = conn.cursor()
         error_type = type(error).__name__
-        if error_type not in metrics["error_counts"]:
-            metrics["error_counts"][error_type] = 0
-        metrics["error_counts"][error_type] += 1
+        cursor.execute('''
+        INSERT INTO error_metrics (error_message, count) 
+        VALUES (?, 1)
+        ON CONFLICT(error_message) DO UPDATE SET count = count + 1
+        ''', (error_type,))
     
-    update_metrics(update_error_metrics)
+    update_db_metrics(update_error_metrics)
 
-def get_metrics() -> Dict[str, Any]:
-    """Get current telemetry metrics"""
-    return read_metrics()
+def log_external_api_failure(request_context: Dict[str, Any], service_name: str, 
+                           error: Exception, response_code: Optional[int] = None) -> None:
+    """Log failures when calling external APIs
+    
+    Args:
+        request_context: The current request context
+        service_name: Name of the external service (e.g., 'google', 'mistral')
+        error: The exception that occurred
+        response_code: Optional HTTP status code if available
+    """
+    error_details = {
+        "service": service_name,
+        "error_type": type(error).__name__,
+        "message": str(error),
+        "response_code": response_code
+    }
+    
+    # Log processing data to the request context (will be saved to DB later)
+    log_processing_data(request_context, f"{service_name}_api_error", error_details)
+    
+    # Log basic info to telemetry.log file
+    logger.error(f"External API failure in request {request_context['request_id']}: "
+                f"{service_name} - {type(error).__name__} - {str(error)}")
+
+    # Update error metrics in database
+    def update_api_error_metrics(conn):
+        cursor = conn.cursor()
+        error_key = f"{service_name}_api_error: {type(error).__name__}"
+        cursor.execute('''
+        INSERT INTO error_metrics (error_message, count) 
+        VALUES (?, 1)
+        ON CONFLICT(error_message) DO UPDATE SET count = count + 1
+        ''', (error_key,))
+    
+    update_db_metrics(update_api_error_metrics)

@@ -6,6 +6,8 @@ from source.modules.config import config
 from source.modules.utils import generate_registration_key
 from source.modules.admin_auth import generate_admin_token, admin_required
 from typing import Dict, List, Any
+from source.modules.telemetry_module import get_metrics
+from source.modules.admin_auth import admin_required
 
 router = APIRouter()
 ADMIN_PASSWORD = config.ADMIN_PASSWORD
@@ -45,3 +47,8 @@ async def admin_login(admin_password: str):
     """
     token, expires_in = generate_admin_token(admin_password)
     return {"token": token, "expires_in": expires_in}
+
+@router.get("/telemetry", dependencies=[Depends(admin_required)])
+def get_telemetry_data():
+    """Get telemetry data for the fake news detection service (admin only)"""
+    return get_metrics()
