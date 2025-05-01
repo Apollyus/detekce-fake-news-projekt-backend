@@ -256,14 +256,14 @@ def log_request_end(request_context: Dict[str, Any], success: bool, result: Dict
         ))
         
         # Maintain retention policy - keep only last 100 records
-        cursor.execute('''
-        DELETE FROM request_logs 
-        WHERE request_id NOT IN (
-            SELECT request_id FROM request_logs 
-            ORDER BY timestamp DESC 
-            LIMIT 100
-        )
-        ''')
+        #cursor.execute('''
+        #DELETE FROM request_logs 
+        #WHERE request_id NOT IN (
+        #    SELECT request_id FROM request_logs 
+        #    ORDER BY timestamp DESC 
+        #    LIMIT 100
+        #)
+        #''')
     
     update_db_metrics(update_end_metrics)
     
