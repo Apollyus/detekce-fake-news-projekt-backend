@@ -33,5 +33,8 @@ class Config:
     TELEMETRY_ENABLED = os.environ.get("TELEMETRY_ENABLED", "true").lower() == "true"
     TELEMETRY_LOG_LEVEL = os.environ.get("TELEMETRY_LOG_LEVEL", "INFO")
 
+    # Environment
+    ENVIRONMENT = os.environ.get("ENVIRONMENT", "production").lower()
+
 # Create a singleton instance
 config = Config()

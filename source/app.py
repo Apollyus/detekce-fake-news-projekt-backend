@@ -93,7 +93,7 @@ from source.routes.token_routes import router as token_router
 from source.routes.auth_routes import router as auth_router
 from source.routes.form_routes import router as form_router
 from source.modules.database import engine, Base
-from source.modules.models import User, RegistrationKey, FormSubmission
+from source.modules.config import config
 
 description = """
     # Fake News Detection API 🕵️‍♂️
@@ -136,7 +136,9 @@ summary = """
     and comprehensive system utilities for monitoring and maintenance.
 """
 
-if os.getenv("ENVIRONMENT", "development").lower() == "production":
+env = config.ENVIRONMENT
+
+if env == "production":
     app = FastAPI(
         docs_url=None,    # Disable docs (Swagger UI)
         redoc_url=None,   # Disable redoc
@@ -168,19 +170,18 @@ else:
 Base.metadata.create_all(bind=engine)
 
 
-'''
-origins = [
-    "https://www.bezfejku.cz",
-    "https://bezfejku.cz",
-    "http://bezfejku.cz",  # Jupyter notebook default port
-    "http://www.bezfejku.cz",  # Typical React dev server
-    "https://api.bezfejku.cz",
-    "http://api.bezfejku.cz",
-    "http://localhost:8000",  # React dev server
-]
-'''
-
-origins = ["*"]
+if env == "production":
+    origins = [
+        "https://www.bezfejku.cz",
+        "https://bezfejku.cz",
+        "http://bezfejku.cz",  # Jupyter notebook default port
+        "http://www.bezfejku.cz",  # Typical React dev server
+        "https://api.bezfejku.cz",
+        "http://api.bezfejku.cz",
+        "http://localhost:8000",  # React dev server
+    ]
+else:
+    origins = ["*"]
 
 # Middleware setup
 app.add_middleware(
