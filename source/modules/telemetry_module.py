@@ -21,7 +21,7 @@ logging.basicConfig(
 logger = logging.getLogger('fake_news_telemetry')
 
 # Define database path (still useful for logging/context, but not direct connection)
-DB_PATH = Path("data/telemetry/telemetry.db")
+DB_PATH = Path("source")
 DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 # Removed db_lock, get_db_connection, update_db_metrics

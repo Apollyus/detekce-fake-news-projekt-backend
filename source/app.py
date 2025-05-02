@@ -167,18 +167,18 @@ else:
         }
     )
 
-Base.metadata.create_all(bind=engine)
-
+Base.metadata.create_all(bind=engine, checkfirst=True)
 
 if env == "production":
     origins = [
         "https://www.bezfejku.cz",
         "https://bezfejku.cz",
-        "http://bezfejku.cz",  # Jupyter notebook default port
-        "http://www.bezfejku.cz",  # Typical React dev server
+        "http://bezfejku.cz",
+        "http://www.bezfejku.cz",
         "https://api.bezfejku.cz",
         "http://api.bezfejku.cz",
-        "http://localhost:8000",  # React dev server
+        "http://localhost:3000",
+        "http://localhost:8000",
     ]
 else:
     origins = ["*"]

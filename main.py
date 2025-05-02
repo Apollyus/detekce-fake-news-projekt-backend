@@ -8,7 +8,7 @@ if __name__ == "__main__":
     print(f"Running in {env} environment")
     
     # Set host based on environment
-    host = "127.0.0.1" if env == "development" else "0.0.0.0"
+    host = "0.0.0.0"
     
     uvicorn.run(
         "source.app:app",
