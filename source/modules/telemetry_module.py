@@ -121,6 +121,7 @@ def log_request_start(prompt: str) -> Dict[str, Any]:
             db.commit()
     except Exception as e:
         logger.error(f"Failed to update start metrics in database: {e}")
+        db.rollback()
     # --- End Aggregate Metrics Update ---
 
     return {
@@ -215,6 +216,7 @@ def log_request_end(request_context: Dict[str, Any], success: bool, result: Dict
 
     except Exception as e:
         logger.error(f"Failed to log request end to database: {e}")
+        db.rollback()
 
     # Log to file (remains the same)
     log_message = f"Request {request_context['request_id']} completed: success={success}, duration={total_duration:.2f}s"
@@ -254,6 +256,7 @@ def log_error(request_context: Dict[str, Any], error: Exception, step: Optional[
             db.commit()
     except Exception as e:
         logger.error(f"Failed to update error metrics in database: {e}")
+        db.rollback()
     # --- End Aggregate Metrics Update ---
 
 
@@ -285,4 +288,5 @@ def log_external_api_failure(request_context: Dict[str, Any], service_name: str,
             db.commit()
     except Exception as e:
         logger.error(f"Failed to update API error metrics in database: {e}")
+        db.rollback()
     # --- End Aggregate Metrics Update ---

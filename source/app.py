@@ -167,8 +167,6 @@ else:
         }
     )
 
-Base.metadata.create_all(bind=engine, checkfirst=True)
-
 if env == "production":
     origins = [
         "https://www.bezfejku.cz",

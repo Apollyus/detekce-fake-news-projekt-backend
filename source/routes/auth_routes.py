@@ -61,4 +61,5 @@ async def auth(request: Request, db: Session = Depends(get_db)):
     except Exception as e:
         # Add debugging to see what's happening
         print(f"OAuth error: {str(e)}")
+        db.rollback()
         raise HTTPException(status_code=400, detail=f"OAuth error: {str(e)}")

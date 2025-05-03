@@ -15,20 +15,18 @@ ADMIN_PASSWORD = config.ADMIN_PASSWORD
 @router.post("/generate-keys")
 def generate_keys(
     count: int = Query(1, ge=1, le=100),
-    _: bool = Depends(admin_required),  # Keep only this authentication
+    _: bool = Depends(admin_required),
     db: Session = Depends(get_db),
 ):
-    # Remove the password parameter and check - admin_required already handles auth
     
     keys = []
     for _ in range(count):
         key = generate_registration_key()
         db_key = RegistrationKey(key=key)
         db.add(db_key)
-        db.commit()
-        db.refresh(db_key)
         keys.append(db_key.key)
 
+    db.commit()  # Commit all changes at once after the loop
     return {"keys": keys}
 
 @router.get("/list-keys")

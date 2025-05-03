@@ -30,4 +30,4 @@ ENV ENVIRONMENT="production"
 
 # Command to run the application
 #CMD ["uvicorn", "source.app:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
-CMD ["python", "main.py"]
+CMD python init_db.py && python main.py
