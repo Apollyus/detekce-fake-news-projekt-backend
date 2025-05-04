@@ -157,7 +157,7 @@ def log_processing_data(request_context: Dict[str, Any], data_type: str, data: A
     """Log processing data like keywords, search phrases, etc."""
     request_context["processing_data"][data_type] = data
 
-async def log_request_end(request_context: Dict[str, Any], success: bool, result: Dict[str, Any]) -> None:
+async def log_request_end(request_context: Dict[str, Any], success: bool, result_data: Dict[str, Any]) -> None:
     """Log the end of a request with results using SQLAlchemy"""
     end_time = time.time()
     total_duration = end_time - request_context["start_time"]
@@ -172,8 +172,8 @@ async def log_request_end(request_context: Dict[str, Any], success: bool, result
         "duration": total_duration,
         "steps_data": json.dumps(request_context["steps"]),
         "processing_data": json.dumps(request_context["processing_data"]),
-        "result_type": result.get("status"),
-        "error_message": None if success else result.get("message")
+        "result_type": result_data.get("status"),
+        "error_message": None if success else result_data.get("message")
     }
 
     try:
@@ -183,8 +183,8 @@ async def log_request_end(request_context: Dict[str, Any], success: bool, result
             db.add(db_record)
 
             # --- Aggregate Metrics Update ---
-            result = await db.execute(select(models.Metrics).filter(models.Metrics.id == 1))
-            metrics_record = result.scalar_one_or_none()
+            db_result = await db.execute(select(models.Metrics).filter(models.Metrics.id == 1))
+            metrics_record = db_result.scalar_one_or_none()
             
             if not metrics_record:
                 metrics_record = models.Metrics(id=1)
@@ -208,12 +208,12 @@ async def log_request_end(request_context: Dict[str, Any], success: bool, result
 
             if not success:
                 # Track error type in ErrorMetrics table
-                error_message = result.get("message", "Unknown error")
+                error_message = result_data.get("message", "Unknown error")
                 # Limit error message length if necessary
                 error_message = error_message[:255] if error_message else "Unknown error"
 
-                result = await db.execute(select(models.ErrorMetrics).filter(models.ErrorMetrics.error_message == error_message))
-                error_record = result.scalar_one_or_none()
+                db_result = await db.execute(select(models.ErrorMetrics).filter(models.ErrorMetrics.error_message == error_message))
+                error_record = db_result.scalar_one_or_none()
                 
                 if error_record:
                     error_record.count += 1
@@ -232,14 +232,14 @@ async def log_request_end(request_context: Dict[str, Any], success: bool, result
     verdict = "UNKNOWN"
     confidence = 0.0
     if success:
-        if isinstance(result.get("result"), dict) and "verdict" in result["result"]:
-            verdict = result["result"]["verdict"]
-            confidence = result["result"].get("confidence", 0.0)
-        elif isinstance(result.get("result"), str):
-            verdict = result["result"]
-        elif "data" in result and isinstance(result["data"], dict):
-            if "evaluation_result" in result["data"]:
-                eval_result = result["data"]["evaluation_result"]
+        if isinstance(result_data.get("result"), dict) and "verdict" in result_data["result"]:
+            verdict = result_data["result"]["verdict"]
+            confidence = result_data["result"].get("confidence", 0.0)
+        elif isinstance(result_data.get("result"), str):
+            verdict = result_data["result"]
+        elif "data" in result_data and isinstance(result_data["data"], dict):
+            if "evaluation_result" in result_data["data"]:
+                eval_result = result_data["data"]["evaluation_result"]
                 verdict = eval_result.get("verdict", verdict)
                 confidence = eval_result.get("confidence", confidence)
     log_message += f", verdict={verdict}, confidence={confidence:.2f}"
