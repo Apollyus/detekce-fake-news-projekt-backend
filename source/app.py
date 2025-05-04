@@ -191,9 +191,6 @@ async def on_startup():
 app.add_middleware(
     SessionMiddleware,
     secret_key=config.SECRET_KEY,
-    max_age=86400,  # 24 hours in seconds
-    same_site="lax",  # Helps with cross-domain issues
-    https_only=True if config.ENVIRONMENT == "production" else False  # Set based on your environment
 )
 app.add_middleware(
     CORSMiddleware,

@@ -8,7 +8,6 @@ from source.modules.database import get_db
 from source.modules.models import User
 from source.modules.config import config
 from authlib.integrations.starlette_client import OAuth
-import secrets
 
 def get_frontend_url():
     """Returns the appropriate frontend URL based on environment"""
@@ -27,20 +26,11 @@ google = oauth.register(
 
 @router.get("/google_login")
 async def login(request: Request):
-    # Generate a secure random state
-    state = secrets.token_urlsafe(16)
-    request.session["oauth_state"] = state
-    
-    redirect_uri = request.url_for('auth')
-    return await google.authorize_redirect(request, redirect_uri, state=state)
+    return await google.authorize_redirect(request, config.REDIRECT_URI)
 
 @router.get('/callback')
 async def auth(request: Request, db: AsyncSession = Depends(get_db)):
     try:
-        # Make sure session is available
-        if "_state" not in request.session:
-            raise HTTPException(status_code=400, detail="Session state is missing")
-       
         # Get token from Google
         token = await google.authorize_access_token(request)
         
