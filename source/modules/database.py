@@ -18,7 +18,7 @@ else:
 # Vytvoření async engine
 engine = create_async_engine(
     SQLALCHEMY_DATABASE_URL,
-    echo=True,
+    echo=False,
 )
 # Session maker pro AsyncSession
 AsyncSessionLocal = sessionmaker(
