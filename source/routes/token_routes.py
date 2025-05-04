@@ -10,6 +10,6 @@ router = APIRouter()
 async def validate_token(request: Request, db: AsyncSession = Depends(get_db)):
     user = await get_current_user(request, db)
     if user:
-        return JSONResponse(content={"valid": True})
+        return JSONResponse(content={"valid": True}, request=request)
     else:
-        return JSONResponse(content={"valid": False}, status_code=401)
+        return JSONResponse(content={"valid": False}, request=request, status_code=401)
