@@ -36,8 +36,6 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 
 # ---- Ověření tokenu & získání uživatele ----
 async def get_current_user(request: Request, db: AsyncSession = Depends(get_db)):
-    # Your auth logic with async/await syntax
-    # Example:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -50,17 +48,24 @@ async def get_current_user(request: Request, db: AsyncSession = Depends(get_db))
     # Validate token
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: int = payload.get("sub")
-        if user_id is None:
+        user_sub = payload.get("sub")
+        if user_sub is None:
             raise credentials_exception
+            
+        # Try to determine if sub is ID or email
+        user = None
+        if user_sub.isdigit():
+            # If it's numeric, assume it's an ID
+            result = await db.execute(select(User).filter(User.id == int(user_sub)))
+            user = result.scalar_one_or_none()
+        else:
+            # Otherwise, assume it's an email
+            result = await db.execute(select(User).filter(User.email == user_sub))
+            user = result.scalar_one_or_none()
+        
+        if user is None:
+            raise credentials_exception
+            
+        return {"user_id": user.id}
     except JWTError:
         raise credentials_exception
-    
-    # Extract user_id
-    result = await db.execute(select(User).filter(User.id == user_id))
-    user = result.scalar_one_or_none()
-    
-    if user is None:
-        raise credentials_exception
-        
-    return {"user_id": user.id}
