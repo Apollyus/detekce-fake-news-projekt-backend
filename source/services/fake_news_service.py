@@ -12,9 +12,9 @@ def is_too_long_words(text: str, max_words: int) -> bool:
     words = text.strip().split()
     return len(words) > max_words
 
-def process_fake_news(prompt: str):
+async def process_fake_news(prompt: str):
     # Start telemetry tracking
-    request_context = log_request_start(prompt)
+    request_context = await log_request_start(prompt)
     
     try:
         # Check if text is too short
@@ -23,7 +23,7 @@ def process_fake_news(prompt: str):
                 "status": "error",
                 "message": "Zadaný text je příliš krátký pro ověření."
             }
-            log_request_end(request_context, False, result)
+            await log_request_end(request_context, False, result)
             return result
             
         # Check if text is too long
@@ -32,7 +32,7 @@ def process_fake_news(prompt: str):
                 "status": "error",
                 "message": "Zadaný text je příliš dlouhý pro ověření."
             }
-            log_request_end(request_context, False, result)
+            await log_request_end(request_context, False, result)
             return result
         
         first_part = check_and_generate_search_phrase(prompt)
@@ -52,7 +52,7 @@ def process_fake_news(prompt: str):
                 "status": "error",
                 "message": "Zadaný text není validní pro ověření..."
             }
-            log_request_end(request_context, False, result)
+            await log_request_end(request_context, False, result)
             return result
             
         # Track Google search
@@ -71,7 +71,7 @@ def process_fake_news(prompt: str):
                 "status": "error",
                 "message": "Nenašli jsme žádné výsledky pro zadaný dotaz."
             }
-            log_request_end(request_context, False, result)
+            await log_request_end(request_context, False, result)
             return result
             
         # Track article filtering
@@ -90,7 +90,7 @@ def process_fake_news(prompt: str):
                 "status": "error",
                 "message": "Nenašli jsme žádné relevantní články pro ověření."
             }
-            log_request_end(request_context, False, result)
+            await log_request_end(request_context, False, result)
             return result
             
         filtered_snippets = [article["snippet"] for article in filtered_articles]
@@ -109,7 +109,7 @@ def process_fake_news(prompt: str):
                 "result": rozhodnuti,
                 "filtered_articles": filtered_articles
             }
-            log_request_end(request_context, True, result)
+            await log_request_end(request_context, True, result)
             return result
         
         result = {
@@ -117,15 +117,15 @@ def process_fake_news(prompt: str):
             "message": "Chyba při ověřování tvrzení.",
             "filtered_articles": filtered_articles
         }
-        log_request_end(request_context, False, result)
+        await log_request_end(request_context, False, result)
         return result
 
     except Exception as e:
         # Log any unexpected errors
-        log_error(request_context, e)
+        await log_error(request_context, e)
         result = {
             "status": "error",
             "message": f"Unexpected error: {str(e)}"
         }
-        log_request_end(request_context, False, result)
+        await log_request_end(request_context, False, result)
         return result

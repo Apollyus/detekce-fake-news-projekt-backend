@@ -36,5 +36,23 @@ class Config:
     # Environment
     ENVIRONMENT = os.environ.get("ENVIRONMENT", "production").lower()
 
+    # Database
+    DATABASE_URL = os.environ.get("DATABASE_URL")
+    if DATABASE_URL:
+        # use full URL if provided
+        SQLALCHEMY_DATABASE_URL = DATABASE_URL
+    else:
+        DB_USER = os.environ.get("DB_USER")
+        DB_PASSWORD = os.environ.get("DB_PASSWORD")
+        DB_HOST = os.environ.get("DB_HOST")
+        DB_PORT = os.environ.get("DB_PORT")
+        DB_NAME = os.environ.get("DB_NAME")
+        print("DB settings:", DB_USER, DB_HOST, DB_PORT, DB_NAME)
+        if not all([DB_USER, DB_PASSWORD, DB_HOST, DB_PORT, DB_NAME]):
+            raise ValueError("Missing one or more required database environment variables.")
+        SQLALCHEMY_DATABASE_URL = (
+            f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+        )
+
 # Create a singleton instance
 config = Config()

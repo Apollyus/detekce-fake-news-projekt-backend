@@ -181,6 +181,13 @@ if env == "production":
 else:
     origins = ["*"]
 
+@app.on_event("startup")
+async def on_startup():
+    # create missing tables
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+
 # Middleware setup
 app.add_middleware(
     SessionMiddleware,

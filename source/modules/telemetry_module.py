@@ -5,12 +5,12 @@ import logging
 from datetime import datetime
 from typing import Dict, Any, Optional
 from pathlib import Path
-# Removed threading and sqlite3
 
-# Import SQLAlchemy components
-from sqlalchemy import func # Import func for calculations like average
-from .database import SessionLocal # Assuming SessionLocal is defined in database.py
-from . import models # Import your models module
+# Import SQLAlchemy components for async operations
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from .database import AsyncSessionLocal  # Import AsyncSessionLocal instead of SessionLocal
+from . import models
 
 # Configure logging
 logging.basicConfig(
@@ -20,13 +20,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger('fake_news_telemetry')
 
-# Define database path (still useful for logging/context, but not direct connection)
+# Define database path (for logging/context)
 DB_PATH = Path("source")
 DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
-# Removed db_lock, get_db_connection, update_db_metrics
-
-def get_metrics():
+async def get_metrics():
     """Get current telemetry metrics using SQLAlchemy"""
     metrics = {
         "total_requests": 0,
@@ -36,13 +34,15 @@ def get_metrics():
         "requests_by_hour": {},
         "error_counts": {},
         "recent_requests": []
-    } # Default structure
+    }
 
     try:
-        with SessionLocal() as db:
+        async with AsyncSessionLocal() as db:
             # --- Aggregate Metrics ---
             # Query Metrics model
-            metrics_record = db.query(models.Metrics).filter(models.Metrics.id == 1).first()
+            result = await db.execute(select(models.Metrics).filter(models.Metrics.id == 1))
+            metrics_record = result.scalar_one_or_none()
+            
             if metrics_record:
                 metrics["total_requests"] = metrics_record.total_requests
                 metrics["successful_requests"] = metrics_record.successful_requests
@@ -50,19 +50,23 @@ def get_metrics():
                 metrics["average_processing_time"] = metrics_record.average_processing_time
 
             # Query HourlyMetrics model
-            hourly_records = db.query(models.HourlyMetrics).all()
+            result = await db.execute(select(models.HourlyMetrics))
+            hourly_records = result.scalars().all()
             metrics["requests_by_hour"] = {rec.hour: rec.request_count for rec in hourly_records}
 
             # Query ErrorMetrics model
-            error_records = db.query(models.ErrorMetrics).all()
+            result = await db.execute(select(models.ErrorMetrics))
+            error_records = result.scalars().all()
             metrics["error_counts"] = {rec.error_message: rec.count for rec in error_records}
             # --- End Aggregate Metrics ---
 
             # Get recent requests (last 100) using TelemetryRecord model
-            recent_requests_db = db.query(models.TelemetryRecord)\
-                                   .order_by(models.TelemetryRecord.timestamp.desc())\
-                                   .limit(100)\
-                                   .all()
+            result = await db.execute(
+                select(models.TelemetryRecord)
+                .order_by(models.TelemetryRecord.timestamp.desc())
+                .limit(100)
+            )
+            recent_requests_db = result.scalars().all()
 
             for rec in recent_requests_db:
                 request_data = {
@@ -83,12 +87,12 @@ def get_metrics():
 
     except Exception as e:
         logger.error(f"Failed to get metrics from database: {e}")
-        metrics["error"] = f"Failed to retrieve metrics: {e}" # Add error info
+        metrics["error"] = f"Failed to retrieve metrics: {e}"
 
     return metrics
 
 
-def log_request_start(prompt: str) -> Dict[str, Any]:
+async def log_request_start(prompt: str) -> Dict[str, Any]:
     """Log the start of a request and return request metadata"""
     request_id = f"{int(time.time())}-{hash(prompt) % 10000}"
     start_time = time.time()
@@ -98,30 +102,33 @@ def log_request_start(prompt: str) -> Dict[str, Any]:
 
     # --- Aggregate Metrics Update ---
     try:
-        with SessionLocal() as db:
+        async with AsyncSessionLocal() as db:
             # Ensure the main metrics record exists
-            metrics_record = db.query(models.Metrics).filter(models.Metrics.id == 1).first()
+            result = await db.execute(select(models.Metrics).filter(models.Metrics.id == 1))
+            metrics_record = result.scalar_one_or_none()
+            
             if not metrics_record:
                 metrics_record = models.Metrics(id=1)
                 db.add(metrics_record)
-                # Need to flush to get the object ready for update in the same session if needed
-                db.flush()
+                await db.flush()
 
             # Increment total requests
             metrics_record.total_requests += 1
 
             # Update hourly metrics
             hour_str = datetime.now().strftime("%Y-%m-%d-%H")
-            hourly_record = db.query(models.HourlyMetrics).filter(models.HourlyMetrics.hour == hour_str).first()
+            result = await db.execute(select(models.HourlyMetrics).filter(models.HourlyMetrics.hour == hour_str))
+            hourly_record = result.scalar_one_or_none()
+            
             if hourly_record:
                 hourly_record.request_count += 1
             else:
                 db.add(models.HourlyMetrics(hour=hour_str, request_count=1))
 
-            db.commit()
+            await db.commit()
     except Exception as e:
         logger.error(f"Failed to update start metrics in database: {e}")
-        db.rollback()
+        await db.rollback()
     # --- End Aggregate Metrics Update ---
 
     return {
@@ -141,7 +148,7 @@ def log_step_time(request_context: Dict[str, Any], step_name: str) -> None:
     logger.debug(f"Step {step_name} completed for request {request_context['request_id']}: duration={duration:.3f}s")
     request_context["steps"][step_name] = {
         "end_time": current_time,
-        "duration": duration # Use calculated duration
+        "duration": duration
     }
     request_context["step_start_time"] = current_time
 
@@ -150,7 +157,7 @@ def log_processing_data(request_context: Dict[str, Any], data_type: str, data: A
     """Log processing data like keywords, search phrases, etc."""
     request_context["processing_data"][data_type] = data
 
-def log_request_end(request_context: Dict[str, Any], success: bool, result: Dict[str, Any]) -> None:
+async def log_request_end(request_context: Dict[str, Any], success: bool, result: Dict[str, Any]) -> None:
     """Log the end of a request with results using SQLAlchemy"""
     end_time = time.time()
     total_duration = end_time - request_context["start_time"]
@@ -158,29 +165,31 @@ def log_request_end(request_context: Dict[str, Any], success: bool, result: Dict
     # Prepare data for TelemetryRecord model
     request_record_data = {
         "request_id": request_context["request_id"],
-        "timestamp": datetime.now(), # Use datetime object
+        "timestamp": datetime.now(),
         "prompt": request_context["prompt"],
         "prompt_length": request_context["prompt_length"],
-        "success": success, # Use boolean directly
+        "success": success,
         "duration": total_duration,
-        "steps_data": json.dumps(request_context["steps"]), # Keep as JSON string
-        "processing_data": json.dumps(request_context["processing_data"]), # Keep as JSON string
+        "steps_data": json.dumps(request_context["steps"]),
+        "processing_data": json.dumps(request_context["processing_data"]),
         "result_type": result.get("status"),
         "error_message": None if success else result.get("message")
     }
 
     try:
-        with SessionLocal() as db:
+        async with AsyncSessionLocal() as db:
             # Insert the TelemetryRecord
             db_record = models.TelemetryRecord(**request_record_data)
             db.add(db_record)
 
             # --- Aggregate Metrics Update ---
-            metrics_record = db.query(models.Metrics).filter(models.Metrics.id == 1).first()
-            if not metrics_record: # Should exist from log_request_start, but check just in case
+            result = await db.execute(select(models.Metrics).filter(models.Metrics.id == 1))
+            metrics_record = result.scalar_one_or_none()
+            
+            if not metrics_record:
                 metrics_record = models.Metrics(id=1)
                 db.add(metrics_record)
-                db.flush() # Ensure it's ready
+                await db.flush()
 
             # Update success/failure counts
             if success:
@@ -189,15 +198,13 @@ def log_request_end(request_context: Dict[str, Any], success: bool, result: Dict
                 metrics_record.failed_requests += 1
 
             # Update average processing time (simple moving average)
-            # Note: total_requests might be slightly off if commit fails, but generally ok
-            total_req = metrics_record.total_requests # Get current total
+            total_req = metrics_record.total_requests
             if total_req > 0:
-               # Avoid division by zero and handle first request
-               if metrics_record.average_processing_time == 0.0 and total_req == 1:
-                   metrics_record.average_processing_time = total_duration
-               else:
-                   # Weighted average: (old_avg * (n-1) + new_value) / n
-                   metrics_record.average_processing_time = ((metrics_record.average_processing_time * (total_req - 1)) + total_duration) / total_req
+                if metrics_record.average_processing_time == 0.0 and total_req == 1:
+                    metrics_record.average_processing_time = total_duration
+                else:
+                    # Weighted average: (old_avg * (n-1) + new_value) / n
+                    metrics_record.average_processing_time = ((metrics_record.average_processing_time * (total_req - 1)) + total_duration) / total_req
 
             if not success:
                 # Track error type in ErrorMetrics table
@@ -205,20 +212,22 @@ def log_request_end(request_context: Dict[str, Any], success: bool, result: Dict
                 # Limit error message length if necessary
                 error_message = error_message[:255] if error_message else "Unknown error"
 
-                error_record = db.query(models.ErrorMetrics).filter(models.ErrorMetrics.error_message == error_message).first()
+                result = await db.execute(select(models.ErrorMetrics).filter(models.ErrorMetrics.error_message == error_message))
+                error_record = result.scalar_one_or_none()
+                
                 if error_record:
                     error_record.count += 1
                 else:
                     db.add(models.ErrorMetrics(error_message=error_message, count=1))
             # --- End Aggregate Metrics Update ---
 
-            db.commit() # Commit TelemetryRecord and any metric updates
+            await db.commit()
 
     except Exception as e:
         logger.error(f"Failed to log request end to database: {e}")
-        db.rollback()
+        await db.rollback()
 
-    # Log to file (remains the same)
+    # Log to file
     log_message = f"Request {request_context['request_id']} completed: success={success}, duration={total_duration:.2f}s"
     verdict = "UNKNOWN"
     confidence = 0.0
@@ -237,34 +246,39 @@ def log_request_end(request_context: Dict[str, Any], success: bool, result: Dict
     logger.info(log_message)
 
 
-def log_error(request_context: Dict[str, Any], error: Exception, step: Optional[str] = None) -> None:
+async def log_error(request_context: Dict[str, Any], error: Exception, step: Optional[str] = None) -> None:
     """Log an error that occurred during processing"""
     error_type = type(error).__name__
-    error_str = str(error)[:255] # Limit length
+    error_str = str(error)[:255]  # Limit length
     logger.error(f"Error in request {request_context['request_id']} at step {step}: {error_type} - {error_str}")
 
     # --- Aggregate Metrics Update ---
     try:
-        with SessionLocal() as db:
+        async with AsyncSessionLocal() as db:
             # Track error type in ErrorMetrics table
             error_key = f"ProcessingError: {error_type}"
-            error_record = db.query(models.ErrorMetrics).filter(models.ErrorMetrics.error_message == error_key).first()
+            
+            result = await db.execute(select(models.ErrorMetrics).filter(models.ErrorMetrics.error_message == error_key))
+            error_record = result.scalar_one_or_none()
+            
             if error_record:
                 error_record.count += 1
             else:
                 db.add(models.ErrorMetrics(error_message=error_key, count=1))
-            db.commit()
+                
+            await db.commit()
+            
     except Exception as e:
         logger.error(f"Failed to update error metrics in database: {e}")
-        db.rollback()
+        await db.rollback()
     # --- End Aggregate Metrics Update ---
 
 
-def log_external_api_failure(request_context: Dict[str, Any], service_name: str,
-                           error: Exception, response_code: Optional[int] = None) -> None:
+async def log_external_api_failure(request_context: Dict[str, Any], service_name: str,
+                          error: Exception, response_code: Optional[int] = None) -> None:
     """Log failures when calling external APIs"""
     error_type = type(error).__name__
-    error_str = str(error)[:255] # Limit length
+    error_str = str(error)[:255]  # Limit length
     error_details = {
         "service": service_name,
         "error_type": error_type,
@@ -277,16 +291,21 @@ def log_external_api_failure(request_context: Dict[str, Any], service_name: str,
 
     # --- Aggregate Metrics Update ---
     try:
-        with SessionLocal() as db:
+        async with AsyncSessionLocal() as db:
             # Track API error type in ErrorMetrics table
             error_key = f"{service_name}_api_error: {error_type}"
-            error_record = db.query(models.ErrorMetrics).filter(models.ErrorMetrics.error_message == error_key).first()
+            
+            result = await db.execute(select(models.ErrorMetrics).filter(models.ErrorMetrics.error_message == error_key))
+            error_record = result.scalar_one_or_none()
+            
             if error_record:
                 error_record.count += 1
             else:
                 db.add(models.ErrorMetrics(error_message=error_key, count=1))
-            db.commit()
+                
+            await db.commit()
+            
     except Exception as e:
         logger.error(f"Failed to update API error metrics in database: {e}")
-        db.rollback()
+        await db.rollback()
     # --- End Aggregate Metrics Update ---

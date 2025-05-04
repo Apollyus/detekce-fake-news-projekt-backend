@@ -1,14 +1,12 @@
 from fastapi import APIRouter, HTTPException, Depends, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 from datetime import datetime
 from typing import List, Dict, Any
 
 from source.modules.database import get_db
 from source.modules.schemas import FormSubmission as FormSubmissionSchema
 from source.modules.models import FormSubmission as FormSubmissionModel
-from source.modules.models import User
-from source.modules.auth import get_current_user
-from source.modules.config import config
 from source.modules.admin_auth import admin_required
 
 router = APIRouter()
@@ -16,14 +14,17 @@ router = APIRouter()
 @router.post("/submit", response_model=FormSubmissionSchema)
 async def submit_form(
     form: FormSubmissionSchema,
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     try:
-        # Kontrola, zda již neexistuje podobný záznam (volitelné)
-        existing_submission = db.query(FormSubmissionModel).filter(
-            FormSubmissionModel.email == form.email,
-            FormSubmissionModel.created_at >= datetime.now().replace(hour=0, minute=0, second=0)
-        ).first()
+        # Check for existing submissions
+        result = await db.execute(
+            select(FormSubmissionModel).filter(
+                FormSubmissionModel.email == form.email,
+                FormSubmissionModel.created_at >= datetime.now().replace(hour=0, minute=0, second=0)
+            )
+        )
+        existing_submission = result.scalar_one_or_none()
         
         if existing_submission:
             raise HTTPException(
@@ -31,7 +32,7 @@ async def submit_form(
                 detail="Již jste dnes odeslali formulář s tímto emailem"
             )
 
-        # Vytvoření nového záznamu
+        # Create new submission
         db_submission = FormSubmissionModel(
             full_name=form.full_name,
             email=form.email,
@@ -39,40 +40,29 @@ async def submit_form(
             message=form.message
         )
         
-        # Přidání do databáze
         db.add(db_submission)
         
         try:
-            # Uložení změn
-            db.commit()
-            # Obnovení dat
-            db.refresh(db_submission)
-        except Exception as db_error:
-            # Rollback v případě chyby
-            db.rollback()
-            raise HTTPException(
-                status_code=500,
-                detail="Chyba při ukládání do databáze"
-            )
-
-        return db_submission
-
+            await db.commit()
+            await db.refresh(db_submission)
+            return db_submission
+        except Exception:
+            await db.rollback()
+            raise HTTPException(status_code=500, detail="Database error")
+            
     except HTTPException as he:
         raise he
     except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail={
-                "error": str(e),
-                "message": "Nastala chyba při odesílání formuláře"
-            }
+            detail=f"Error: {str(e)}"
         )
     
 @router.get("/submissions", response_model=List[Dict[str, Any]])
 async def get_form_submissions(
     limit: int = None,
     _: bool = Depends(admin_required),  # Use the admin dependency
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)   # Use AsyncSession for database connection
 ):
     """
     Get form submissions with optional limit on number of recent entries.
@@ -85,12 +75,9 @@ async def get_form_submissions(
     Returns a list of form submissions with their complete content.
     """
     # Query with optional limit on most recent submissions
-    query = db.query(FormSubmissionModel).order_by(FormSubmissionModel.created_at.desc())
+    query = await db.execute(select(FormSubmissionModel).order_by(FormSubmissionModel.created_at.desc()))
     
-    if limit and isinstance(limit, int) and limit > 0:
-        query = query.limit(limit)
-    
-    submissions = query.all()
+    submissions = query.scalars().all()  # Fetch all the results asynchronously
     
     # Convert to dictionary format for response
     result = []

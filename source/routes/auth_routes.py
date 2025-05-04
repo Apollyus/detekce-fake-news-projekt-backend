@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+import os
 from source.modules.auth import create_access_token, get_current_user
 from source.modules.database import get_db
 from source.modules.models import User
@@ -27,7 +29,7 @@ async def login(request: Request):
     return await google.authorize_redirect(request, config.REDIRECT_URI)
 
 @router.get('/callback')
-async def auth(request: Request, db: Session = Depends(get_db)):
+async def auth(request: Request, db: AsyncSession = Depends(get_db)):
     try:
         # Get token from Google
         token = await google.authorize_access_token(request)
@@ -36,8 +38,10 @@ async def auth(request: Request, db: Session = Depends(get_db)):
         userinfo = await google.get('https://www.googleapis.com/oauth2/v3/userinfo', token=token)
         user_data = userinfo.json()
         
-        # Check if user exists and create if not
-        db_user = db.query(User).filter(User.email == user_data['email']).first()
+        # Check if user exists and create if not - converted to async
+        result = await db.execute(select(User).filter(User.email == user_data['email']))
+        db_user = result.scalar_one_or_none()
+        
         if not db_user:
             # Create user with empty password - indicating OAuth user without set password
             db_user = User(
@@ -45,15 +49,14 @@ async def auth(request: Request, db: Session = Depends(get_db)):
                 hashed_password=""  # Empty password indicates OAuth user who needs to complete registration
             )
             db.add(db_user)
-            db.commit()
-            db.refresh(db_user)
+            await db.commit()
+            await db.refresh(db_user)
         
         # Create JWT token
         access_token = create_access_token(data={"sub": user_data['email']})
 
         # Get frontend URL from config
-        #frontend_url = config.get_frontend_url()
-        frontend_url = "https://www.bezfejku.cz"
+        frontend_url = get_frontend_url()  # Used the correct function here
         
         return RedirectResponse(
             url=f"{frontend_url}/googleLoginSuccess?token={access_token}&email={user_data['email']}"
@@ -61,5 +64,5 @@ async def auth(request: Request, db: Session = Depends(get_db)):
     except Exception as e:
         # Add debugging to see what's happening
         print(f"OAuth error: {str(e)}")
-        db.rollback()
+        await db.rollback()  # Roll back transaction asynchronously
         raise HTTPException(status_code=400, detail=f"OAuth error: {str(e)}")
