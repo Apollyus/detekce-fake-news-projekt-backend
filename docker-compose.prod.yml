@@ -1,5 +1,5 @@
-version: '3.8'
-
 services:
   backend:
     image: user2106874/fakechecker-api:latest
+    container_name: fakechecker-api-backend
+    volumes: []

@@ -185,8 +185,7 @@ else:
 async def on_startup():
     # create missing tables
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
+        await conn.run_sync(lambda sync_conn: Base.metadata.create_all(sync_conn, checkfirst=True))
 
 # Middleware setup
 app.add_middleware(

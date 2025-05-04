@@ -14,7 +14,7 @@ if __name__ == "__main__":
         "source.app:app",
         host=host,
         port=8000,
-        workers=4,
+        workers=1,
         reload=(env == "development"),  # Enable reload only in local environment
         log_level="info",
         proxy_headers=True,

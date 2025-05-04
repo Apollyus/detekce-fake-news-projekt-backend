@@ -50,17 +50,13 @@ async def get_current_user(request: Request, db: AsyncSession = Depends(get_db))
     # Validate token
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id = payload.get("sub")
+        user_id: int = payload.get("sub")
         if user_id is None:
             raise credentials_exception
-            
-        # Convert string user_id to integer before database query
-        user_id = int(user_id)
-        
-    except (JWTError, ValueError):
+    except JWTError:
         raise credentials_exception
     
-    # Now user_id is an integer that can be compared with the integer column
+    # Extract user_id
     result = await db.execute(select(User).filter(User.id == user_id))
     user = result.scalar_one_or_none()
     
