@@ -10,12 +10,15 @@ from source.modules.config import config
 from authlib.integrations.starlette_client import OAuth
 
 def get_frontend_url():
-    """Returns the appropriate frontend URL based on environment"""
+    """Vrátí příslušnou URL frontendu podle prostředí"""
     is_prod = os.getenv('ENVIRONMENT', 'development').lower() == 'production'
     return "https://bezfejku.cz" if is_prod else "http://localhost:3000"
 
+# Vytvoření routeru pro autentizační endpointy
 router = APIRouter()
+# Inicializace OAuth klienta
 oauth = OAuth()
+# Registrace Google OAuth poskytovatele
 google = oauth.register(
     name='google',
     client_id=config.GOOGLE_CLIENT_ID,
@@ -26,43 +29,53 @@ google = oauth.register(
 
 @router.get("/google_login")
 async def login(request: Request):
+    """
+    Endpoint pro zahájení Google přihlášení.
+    Přesměruje uživatele na Google OAuth přihlašovací stránku.
+    """
     return await google.authorize_redirect(request, config.REDIRECT_URI)
 
 @router.get('/callback')
 async def auth(request: Request, db: AsyncSession = Depends(get_db)):
+    """
+    Callback endpoint pro zpracování odpovědi z Google OAuth.
+    Ověří token, získá informace o uživateli, vytvoří uživatele v databázi (pokud neexistuje),
+    vygeneruje JWT token a přesměruje uživatele zpět na frontend.
+    """
     try:
-        # Get token from Google
+        # Získání tokenu od Google
         token = await google.authorize_access_token(request)
         
-        # Pass the token when fetching user info
+        # Předání tokenu při získávání informací o uživateli
         userinfo = await google.get('https://www.googleapis.com/oauth2/v3/userinfo', token=token)
         user_data = userinfo.json()
         
-        # Check if user exists and create if not - converted to async
+        # Kontrola, zda uživatel existuje, a vytvoření, pokud ne - převedeno na asynchronní
         result = await db.execute(select(User).filter(User.email == user_data['email']))
         db_user = result.scalar_one_or_none()
         
         if not db_user:
-            # Create user with empty password - indicating OAuth user without set password
+            # Vytvoření uživatele s prázdným heslem - indikuje OAuth uživatele bez nastaveného hesla
             db_user = User(
                 email=user_data['email'],
-                hashed_password=""  # Empty password indicates OAuth user who needs to complete registration
+                hashed_password=""  # Prázdné heslo indikuje OAuth uživatele, který musí dokončit registraci
             )
             db.add(db_user)
             await db.commit()
             await db.refresh(db_user)
         
-        # Create JWT token
+        # Vytvoření JWT tokenu
         access_token = create_access_token(data={"sub": user_data['email']})
 
-        # Get frontend URL from config
-        frontend_url = get_frontend_url()  # Used the correct function here
+        # Získání URL frontendu z konfigurace
+        frontend_url = get_frontend_url()
         
+        # Přesměrování uživatele zpět na frontend s tokenem a emailem
         return RedirectResponse(
             url=f"{frontend_url}/googleLoginSuccess?token={access_token}&email={user_data['email']}"
         )
     except Exception as e:
-        # Add debugging to see what's happening
-        print(f"OAuth error: {str(e)}")
-        await db.rollback()  # Roll back transaction asynchronously
-        raise HTTPException(status_code=400, detail=f"OAuth error: {str(e)}")
+        # Přidání ladění pro zjištění, co se děje
+        print(f"OAuth chyba: {str(e)}")
+        await db.rollback()  # Asynchronní vrácení transakce
+        raise HTTPException(status_code=400, detail=f"OAuth chyba: {str(e)}")

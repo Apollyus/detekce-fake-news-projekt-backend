@@ -3,52 +3,52 @@ from sumy.summarizers.lsa import LsaSummarizer
 import nltk
 import re
 
-# Download required NLTK data
+# Stažení požadovaných NLTK dat
 try:
     nltk.download('punkt', quiet=True)
 except Exception as e:
     print(f"Warning: Could not download NLTK data: {e}")
 
 class SimpleTokenizer:
-    """Simple tokenizer that works for both Czech and English"""
+    """Jednoduchý tokenizátor, který funguje pro češtinu i angličtinu"""
     def __init__(self):
         self.sentence_pattern = re.compile(r'(?<=[.!?])\s+')
         
     def tokenize(self, text):
-        # Simple sentence splitting based on punctuation
+        # Jednoduché rozdělení vět na základě interpunkce
         sentences = re.split(r'(?<=[.!?])\s+', text)
         return [s.strip() for s in sentences if s.strip()]
     
     def to_sentences(self, paragraph):
-        """Required by Sumy: Split paragraphs into sentences"""
+        """Vyžadováno knihovnou Sumy: Rozdělení odstavců na věty"""
         return self.tokenize(paragraph)
     
     def to_words(self, sentence):
-        """Required by Sumy: Split sentences into words"""
+        """Vyžadováno knihovnou Sumy: Rozdělení vět na slova"""
         return sentence.split()
 
 def get_summary(text, sentence_count=3):
     """
-    Generate a summary of the provided text.
+    Vygeneruje souhrn poskytnutého textu.
     
-    Args:
-        text (str): The text to summarize
-        sentence_count (int, optional): Number of sentences in the summary. Default is 3.
+    Argumenty:
+        text (str): Text k sumarizaci
+        sentence_count (int, volitelný): Počet vět v souhrnu. Výchozí hodnota je 3.
         
-    Returns:
-        str: The summarized text
+    Vrací:
+        str: Sumarizovaný text
     """
-    # Create a parser with custom tokenizer
+    # Vytvoření parseru s vlastním tokenizátorem
     parser = PlaintextParser.from_string(text, SimpleTokenizer())
         
-    # Use LSA summarizer
+    # Použití LSA sumarizátoru
     summarizer = LsaSummarizer()
     summary = summarizer(parser.document, sentence_count)
     return " ".join(str(s) for s in summary)
 
-# Example usage
+# Příklad použití
 '''if __name__ == "__main__":
-    # Example text for testing
+    # Ukázkový text pro testování
     example_text = """
     Zatímco administrativaDonalda Trumpausiluje o snížení obchodního deficitu Spojených států v oblasti zboží, 
     řada sankcionovaných zemí – včetně Evropské unie – čelí opačné situaci v sektoru služeb, kde naopak vykazují 
@@ -63,7 +63,7 @@ def get_summary(text, sentence_count=3):
     Výsledkem byl pro EU deficit obchodu se službami v přepočtu 2,7 bilionu korun.
     """
     
-    # Generate summary with 2 sentences
+    # Vygenerování souhrnu se 2 větami
     summary = get_summary(example_text, sentence_count=2)
     print("Summary:")
     print(summary)'''

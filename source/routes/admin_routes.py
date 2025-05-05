@@ -9,7 +9,9 @@ from source.modules.admin_auth import generate_admin_token, admin_required
 from typing import Dict, List, Any
 from source.modules.telemetry_module import get_metrics
 
+# Vytvoření routeru pro administrativní endpointy
 router = APIRouter()
+# Načtení admin hesla z konfigurace
 ADMIN_PASSWORD = config.ADMIN_PASSWORD
 
 @router.post("/generate-keys")
@@ -19,7 +21,8 @@ async def generate_keys(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Generates a list of registration keys and stores them in the database.
+    Vygeneruje zadaný počet registračních klíčů a uloží je do databáze.
+    Vyžaduje admin autentizaci.
     """
     keys = []
     for _ in range(count):
@@ -28,7 +31,7 @@ async def generate_keys(
         db.add(db_key)
         keys.append(db_key.key)
 
-    await db.commit()  # Commit all changes asynchronously
+    await db.commit()  # Asynchronní potvrzení všech změn v databázi
     return {"keys": keys}
 
 @router.get("/list-keys")
@@ -36,20 +39,21 @@ async def list_keys(
     _: bool = Depends(admin_required),
     db: AsyncSession = Depends(get_db)):
     """
-    Lists all registration keys from the database.
+    Zobrazí seznam všech registračních klíčů z databáze.
+    Vyžaduje admin autentizaci.
     """
     result = await db.execute(select(RegistrationKey))
-    keys = result.scalars().all()  # Get the list of keys
+    keys = result.scalars().all()  # Získání seznamu klíčů
     return {"keys": [key.key for key in keys]}
 
 @router.post("/admin-login", response_model=Dict[str, Any])
 async def admin_login(admin_password: str):
     """
-    Generate a secure admin token by providing the admin password.
-    This token can be used for subsequent admin operations.
+    Generuje bezpečný admin token po zadání správného admin hesla.
+    Tento token lze použít pro následné administrativní operace.
     """
     if admin_password != ADMIN_PASSWORD:
-        raise HTTPException(status_code=401, detail="Invalid admin password")
+        raise HTTPException(status_code=401, detail="Neplatné admin heslo")
     
     token, expires_in = generate_admin_token(admin_password)
     return {"token": token, "expires_in": expires_in}
@@ -57,6 +61,7 @@ async def admin_login(admin_password: str):
 @router.get("/telemetry", dependencies=[Depends(admin_required)])
 async def get_telemetry_data():
     """
-    Get telemetry data for the fake news detection service (admin only)
+    Získá telemetrická data pro službu detekce fake news (pouze pro adminy).
+    Vyžaduje admin autentizaci.
     """
-    return await get_metrics()  # Ensure telemetry is async
+    return await get_metrics()  # Zajištění asynchronního volání telemetrie

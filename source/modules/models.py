@@ -1,73 +1,80 @@
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, Float, ForeignKey
-from sqlalchemy.orm import relationship # Import relationship
+from sqlalchemy.orm import relationship # Import pro definici vztahů mezi modely
 from datetime import datetime
 from .database import Base
 
 class User(Base):
+    """Model pro uživatele systému"""
     __tablename__ = "users"
 
-    id = Column(Integer, primary_key=True, index=True)
-    email = Column(String, unique=True, index=True, nullable=False)
-    hashed_password = Column(String, nullable=False)
-    #created_at = Column(DateTime, default=datetime.utcnow) # Added timestamp
-    #updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow) # Added timestamp
+    id = Column(Integer, primary_key=True, index=True) # Primární klíč
+    email = Column(String, unique=True, index=True, nullable=False) # Email uživatele (unikátní)
+    hashed_password = Column(String, nullable=False) # Hashované heslo
+    #created_at = Column(DateTime, default=datetime.utcnow) # Časové razítko vytvoření
+    #updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow) # Časové razítko aktualizace
 
-    # Relationship to the RegistrationKey used by this user
+    # Vztah k registračnímu klíči použitému uživatelem
     registration_key_used = relationship("RegistrationKey", back_populates="used_by_user", uselist=False)
 
 class RegistrationKey(Base):
+    """Model pro registrační klíče"""
     __tablename__ = "registration_keys"
 
-    id = Column(Integer, primary_key=True, index=True)
-    key = Column(String, unique=True, index=True, nullable=False)
-    used = Column(Boolean, default=False)
-    # Changed to ForeignKey linking to User.id
-    used_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    id = Column(Integer, primary_key=True, index=True) # Primární klíč
+    key = Column(String, unique=True, index=True, nullable=False) # Hodnota registračního klíče
+    used = Column(Boolean, default=False) # Příznak použití klíče
+    # Cizí klíč odkazující na uživatele, který klíč použil
+    used_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True) 
+    created_at = Column(DateTime, default=datetime.utcnow) # Datum vytvoření klíče
 
-    # Relationship to the User who used this key
+    # Vztah k uživateli, který tento klíč použil
     used_by_user = relationship("User", back_populates="registration_key_used")
 
 class FormSubmission(Base):
+    """Model pro uložení kontaktních formulářů"""
     __tablename__ = "form_submissions"
 
-    id = Column(Integer, primary_key=True, index=True)
-    full_name = Column(String, nullable=False)
-    email = Column(String, nullable=False)
-    subject = Column(String, nullable=False)
-    message = Column(String, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    id = Column(Integer, primary_key=True, index=True) # Primární klíč
+    full_name = Column(String, nullable=False) # Celé jméno odesílatele
+    email = Column(String, nullable=False) # Email odesílatele
+    subject = Column(String, nullable=False) # Předmět zprávy
+    message = Column(String, nullable=False) # Obsah zprávy
+    created_at = Column(DateTime, default=datetime.utcnow) # Datum vytvoření záznamu
 
 class TelemetryRecord(Base):
+    """Model pro záznam telemetrie systému"""
     __tablename__ = "telemetry_records"
 
-    id = Column(Integer, primary_key=True, index=True)
-    request_id = Column(String, unique=True, index=True)
-    timestamp = Column(DateTime, default=datetime.utcnow)
-    prompt = Column(String, nullable=False)
-    prompt_length = Column(Integer)
-    success = Column(Boolean, default=False)
-    duration = Column(Float)
-    result_type = Column(String)
-    error_message = Column(String, nullable=True)
-    steps_data = Column(String)  # JSON string
-    processing_data = Column(String)  # JSON string
+    id = Column(Integer, primary_key=True, index=True) # Primární klíč
+    request_id = Column(String, unique=True, index=True) # Unikátní ID požadavku
+    timestamp = Column(DateTime, default=datetime.utcnow) # Časové razítko
+    prompt = Column(String, nullable=False) # Vstupní text/dotaz
+    prompt_length = Column(Integer) # Délka vstupního textu
+    success = Column(Boolean, default=False) # Úspěšnost zpracování
+    duration = Column(Float) # Doba zpracování
+    result_type = Column(String) # Typ výsledku
+    error_message = Column(String, nullable=True) # Chybová zpráva (pokud nastala)
+    steps_data = Column(String)  # JSON řetězec s daty o jednotlivých krocích
+    processing_data = Column(String)  # JSON řetězec s daty o zpracování
 
 class Metrics(Base):
-    __tablename__ = "metrics" # Matches old table name
-    id = Column(Integer, primary_key=True)
-    total_requests = Column(Integer, default=0)
-    successful_requests = Column(Integer, default=0)
-    failed_requests = Column(Integer, default=0)
-    average_processing_time = Column(Float, default=0.0)
-    # Add other fields if needed
+    """Model pro agregované metriky systému"""
+    __tablename__ = "metrics" # Název tabulky odpovídá původnímu
+    id = Column(Integer, primary_key=True) # Primární klíč
+    total_requests = Column(Integer, default=0) # Celkový počet požadavků
+    successful_requests = Column(Integer, default=0) # Počet úspěšných požadavků
+    failed_requests = Column(Integer, default=0) # Počet neúspěšných požadavků
+    average_processing_time = Column(Float, default=0.0) # Průměrná doba zpracování
+    # Další pole mohou být přidána podle potřeby
 
 class HourlyMetrics(Base):
-    __tablename__ = "hourly_metrics" # Matches old table name
-    hour = Column(String, primary_key=True) # e.g., "2025-05-01-14"
-    request_count = Column(Integer, default=0)
+    """Model pro hodinové metriky systému"""
+    __tablename__ = "hourly_metrics" # Název tabulky odpovídá původnímu
+    hour = Column(String, primary_key=True) # Hodina jako primární klíč (např. "2025-05-01-14")
+    request_count = Column(Integer, default=0) # Počet požadavků v dané hodině
 
 class ErrorMetrics(Base):
-    __tablename__ = "error_metrics" # Matches old table name
-    error_message = Column(String, primary_key=True)
-    count = Column(Integer, default=0)
+    """Model pro metriky chyb"""
+    __tablename__ = "error_metrics" # Název tabulky odpovídá původnímu
+    error_message = Column(String, primary_key=True) # Chybová zpráva jako primární klíč
+    count = Column(Integer, default=0) # Počet výskytů této chyby

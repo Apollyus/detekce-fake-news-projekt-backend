@@ -1,67 +1,79 @@
-from pydantic import BaseModel, EmailStr, constr, validator
-from typing import Optional
-import re
-from html import escape
-from datetime import datetime
+# Definice schémat pro validaci dat používaných v API aplikace pro detekci fake news
+from pydantic import BaseModel, EmailStr, constr, validator  # Import Pydantic tříd pro validaci dat
+from typing import Optional  # Import pro označení volitelných polí
+import re  # Import pro práci s regulárními výrazy
+from html import escape  # Import pro escapování HTML znaků
+from datetime import datetime  # Import pro práci s časovými údaji
 
 class UserCreate(BaseModel):
-    email: EmailStr
-    password: str
+    """Schéma pro vytvoření nového uživatele"""
+    email: EmailStr  # Email uživatele (validovaný formát)
+    password: str  # Heslo uživatele
 
 class UserOut(BaseModel):
-    id: int
-    email: EmailStr
+    """Schéma pro výstup informací o uživateli (bez citlivých údajů)"""
+    id: int  # ID uživatele
+    email: EmailStr  # Email uživatele
 
     class Config:
-        from_attributes = True
+        """Konfigurace pro automatické mapování z ORM objektů"""
+        from_attributes = True  # Povoluje konverzi z ORM objektů
 
 class UserLogin(BaseModel):
-    email: EmailStr
-    password: str
+    """Schéma pro přihlášení uživatele"""
+    email: EmailStr  # Email uživatele
+    password: str  # Heslo uživatele
 
 class TokenResponse(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
+    """Schéma pro odpověď s přístupovým tokenem"""
+    access_token: str  # Přístupový token
+    token_type: str = "bearer"  # Typ tokenu (výchozí hodnota "bearer")
 
-# schemas.py
 class UserCreateWithKey(UserCreate):
-    registration_key: str
+    """Rozšířené schéma pro vytvoření uživatele s registračním klíčem"""
+    registration_key: str  # Registrační klíč pro ověření
 
 class CompleteRegistrationRequest(BaseModel):
-    token: str
-    email: str
-    password: str
-    registrationKey: str
+    """Schéma pro dokončení registrace uživatele"""
+    token: str  # Token pro ověření
+    email: str  # Email uživatele
+    password: str  # Heslo uživatele
+    registrationKey: str  # Registrační klíč
 
 class UserCheckRequest(BaseModel):
-    email: str
-    token: str
+    """Schéma pro ověření uživatele"""
+    email: str  # Email uživatele
+    token: str  # Token pro ověření
 
 class FormSubmission(BaseModel):
-    full_name: constr(min_length=2, max_length=100)
-    email: EmailStr
-    subject: constr(min_length=3, max_length=100)
-    message: constr(min_length=10, max_length=1000)
-    # Add id and created_at if you want them in the response
-    id: int | None = None # Or just int if always present
-    created_at: datetime | None = None # Or just datetime
+    """Schéma pro odeslání kontaktního formuláře"""
+    full_name: constr(min_length=2, max_length=100)  # Celé jméno (omezená délka 2-100 znaků)
+    email: EmailStr  # Email odesílatele
+    subject: constr(min_length=3, max_length=100)  # Předmět zprávy (omezená délka 3-100 znaků)
+    message: constr(min_length=10, max_length=1000)  # Obsah zprávy (omezená délka 10-1000 znaků)
+    # Volitelná pole pro odpověď
+    id: int | None = None  # ID záznamu formuláře (volitelné)
+    created_at: datetime | None = None  # Čas vytvoření záznamu (volitelné)
 
-    # Add Config class for ORM mode
+    # Konfigurace pro ORM režim
     class Config:
-        orm_mode = True
+        """Konfigurace pro automatické mapování z ORM objektů"""
+        orm_mode = True  # Povoluje konverzi z ORM objektů
 
     @validator('full_name', 'subject', 'message')
     def sanitize_text(cls, v):
-        # Remove HTML tags
+        """Validátor pro sanitizaci textových vstupů"""
+        # Odstranění HTML tagů
         clean_text = re.sub(r'<[^>]*>', '', v)
-        # Escape special characters
+        # Escapování speciálních znaků
         clean_text = escape(clean_text)
-        # Remove multiple spaces
+        # Odstranění vícenásobných mezer
         clean_text = ' '.join(clean_text.split())
         return clean_text
 
     @validator('full_name')
     def validate_name(cls, v):
+        """Validátor pro kontrolu formátu jména"""
         if not re.match(r'^[a-zA-Z\s-]+$', v):
-            raise ValueError('Name should only contain letters, spaces, and hyphens')
+            raise ValueError('Jméno by mělo obsahovat pouze písmena, mezery a pomlčky')
         return v

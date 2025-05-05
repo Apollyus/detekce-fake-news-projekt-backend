@@ -1,3 +1,5 @@
+# Telemetrický modul pro sledování a protokolování metrik systému detekce fake news
+# Modul odpovídá za sledování požadavků, chyb a výkonnostních metrik
 import time
 import json
 import os
@@ -6,13 +8,13 @@ from datetime import datetime
 from typing import Dict, Any, Optional
 from pathlib import Path
 
-# Import SQLAlchemy components for async operations
+# Import komponentů SQLAlchemy pro asynchronní operace
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from .database import AsyncSessionLocal  # Import AsyncSessionLocal instead of SessionLocal
+from .database import AsyncSessionLocal
 from . import models
 
-# Configure logging
+# Konfigurace logování
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -20,12 +22,16 @@ logging.basicConfig(
 )
 logger = logging.getLogger('fake_news_telemetry')
 
-# Define database path (for logging/context)
+# Definice cesty k databázi (pro logování/kontext)
 DB_PATH = Path("source")
 DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 async def get_metrics():
-    """Get current telemetry metrics using SQLAlchemy"""
+    """Získání aktuálních telemetrických metrik z databáze
+    
+    Shromažďuje statistiky požadavků, úspěšnosti, doby zpracování a chyb.
+    Vrací strukturovaný slovník s metrikami a nedávnými požadavky.
+    """
     metrics = {
         "total_requests": 0,
         "successful_requests": 0,
@@ -38,8 +44,8 @@ async def get_metrics():
 
     try:
         async with AsyncSessionLocal() as db:
-            # --- Aggregate Metrics ---
-            # Query Metrics model
+            # --- Agregované metriky ---
+            # Dotaz na model Metrics
             result = await db.execute(select(models.Metrics).filter(models.Metrics.id == 1))
             metrics_record = result.scalar_one_or_none()
             
@@ -49,18 +55,18 @@ async def get_metrics():
                 metrics["failed_requests"] = metrics_record.failed_requests
                 metrics["average_processing_time"] = metrics_record.average_processing_time
 
-            # Query HourlyMetrics model
+            # Dotaz na model HourlyMetrics - statistika po hodinách
             result = await db.execute(select(models.HourlyMetrics))
             hourly_records = result.scalars().all()
             metrics["requests_by_hour"] = {rec.hour: rec.request_count for rec in hourly_records}
 
-            # Query ErrorMetrics model
+            # Dotaz na model ErrorMetrics - statistika chyb
             result = await db.execute(select(models.ErrorMetrics))
             error_records = result.scalars().all()
             metrics["error_counts"] = {rec.error_message: rec.count for rec in error_records}
-            # --- End Aggregate Metrics ---
+            # --- Konec agregovaných metrik ---
 
-            # Get recent requests (last 100) using TelemetryRecord model
+            # Získání posledních 100 požadavků pomocí modelu TelemetryRecord
             result = await db.execute(
                 select(models.TelemetryRecord)
                 .order_by(models.TelemetryRecord.timestamp.desc())
@@ -79,7 +85,7 @@ async def get_metrics():
                     "duration": rec.duration,
                     "result_type": rec.result_type,
                     "error_message": rec.error_message,
-                    # Deserialize JSON fields safely
+                    # Bezpečná deserializace JSON polí
                     "steps": json.loads(rec.steps_data) if rec.steps_data else {},
                     "processing_data": json.loads(rec.processing_data) if rec.processing_data else {}
                 }
@@ -93,17 +99,21 @@ async def get_metrics():
 
 
 async def log_request_start(prompt: str) -> Dict[str, Any]:
-    """Log the start of a request and return request metadata"""
+    """Zaprotokoluje začátek požadavku a vrátí metadata požadavku
+    
+    Vytváří jedinečné ID požadavku, zaznamená čas začátku a 
+    aktualizuje celkové statistiky požadavků v databázi.
+    """
     request_id = f"{int(time.time())}-{hash(prompt) % 10000}"
     start_time = time.time()
 
     truncated_prompt = prompt[:100] + "..." if len(prompt) > 100 else prompt
     logger.info(f"Request {request_id} started: prompt_length={len(prompt)}, prompt=\"{truncated_prompt}\"")
 
-    # --- Aggregate Metrics Update ---
+    # --- Aktualizace agregovaných metrik ---
     try:
         async with AsyncSessionLocal() as db:
-            # Ensure the main metrics record exists
+            # Zajištění existence hlavního záznamu metrik
             result = await db.execute(select(models.Metrics).filter(models.Metrics.id == 1))
             metrics_record = result.scalar_one_or_none()
             
@@ -112,10 +122,10 @@ async def log_request_start(prompt: str) -> Dict[str, Any]:
                 db.add(metrics_record)
                 await db.flush()
 
-            # Increment total requests
+            # Přičtení k celkovému počtu požadavků
             metrics_record.total_requests += 1
 
-            # Update hourly metrics
+            # Aktualizace hodinových metrik
             hour_str = datetime.now().strftime("%Y-%m-%d-%H")
             result = await db.execute(select(models.HourlyMetrics).filter(models.HourlyMetrics.hour == hour_str))
             hourly_record = result.scalar_one_or_none()
@@ -129,7 +139,7 @@ async def log_request_start(prompt: str) -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"Failed to update start metrics in database: {e}")
         await db.rollback()
-    # --- End Aggregate Metrics Update ---
+    # --- Konec aktualizace agregovaných metrik ---
 
     return {
         "request_id": request_id,
@@ -140,9 +150,12 @@ async def log_request_start(prompt: str) -> Dict[str, Any]:
         "processing_data": {}
     }
 
-# log_step_time remains the same (no DB interaction)
 def log_step_time(request_context: Dict[str, Any], step_name: str) -> None:
-    """Log the time taken for a specific step"""
+    """Zaprotokoluje čas strávený na konkrétním kroku zpracování
+    
+    Měří dobu trvání jednotlivých kroků v procesu zpracování požadavku
+    a ukládá tyto informace do kontextu požadavku.
+    """
     current_time = time.time()
     duration = current_time - request_context.get("step_start_time", request_context["start_time"])
     logger.debug(f"Step {step_name} completed for request {request_context['request_id']}: duration={duration:.3f}s")
@@ -152,17 +165,24 @@ def log_step_time(request_context: Dict[str, Any], step_name: str) -> None:
     }
     request_context["step_start_time"] = current_time
 
-# log_processing_data remains the same (no DB interaction)
 def log_processing_data(request_context: Dict[str, Any], data_type: str, data: Any) -> None:
-    """Log processing data like keywords, search phrases, etc."""
+    """Zaznamenává data zpracování jako klíčová slova, hledané fráze atd.
+    
+    Ukládá mezivýsledky a data z procesu zpracování požadavku
+    do kontextu požadavku pro analýzu a ladění.
+    """
     request_context["processing_data"][data_type] = data
 
 async def log_request_end(request_context: Dict[str, Any], success: bool, result_data: Dict[str, Any]) -> None:
-    """Log the end of a request with results using SQLAlchemy"""
+    """Zaprotokoluje ukončení požadavku s výsledky
+    
+    Vypočítá celkovou dobu trvání požadavku, aktualizuje statistiky úspěšnosti/selhání
+    a ukládá záznam do databáze včetně průběžných dat.
+    """
     end_time = time.time()
     total_duration = end_time - request_context["start_time"]
 
-    # Prepare data for TelemetryRecord model
+    # Příprava dat pro model TelemetryRecord
     request_record_data = {
         "request_id": request_context["request_id"],
         "timestamp": datetime.now(),
@@ -178,11 +198,11 @@ async def log_request_end(request_context: Dict[str, Any], success: bool, result
 
     try:
         async with AsyncSessionLocal() as db:
-            # Insert the TelemetryRecord
+            # Vložení záznamu TelemetryRecord
             db_record = models.TelemetryRecord(**request_record_data)
             db.add(db_record)
 
-            # --- Aggregate Metrics Update ---
+            # --- Aktualizace agregovaných metrik ---
             db_result = await db.execute(select(models.Metrics).filter(models.Metrics.id == 1))
             metrics_record = db_result.scalar_one_or_none()
             
@@ -191,25 +211,25 @@ async def log_request_end(request_context: Dict[str, Any], success: bool, result
                 db.add(metrics_record)
                 await db.flush()
 
-            # Update success/failure counts
+            # Aktualizace počtu úspěšných/neúspěšných požadavků
             if success:
                 metrics_record.successful_requests += 1
             else:
                 metrics_record.failed_requests += 1
 
-            # Update average processing time (simple moving average)
+            # Aktualizace průměrné doby zpracování (jednoduchý klouzavý průměr)
             total_req = metrics_record.total_requests
             if total_req > 0:
                 if metrics_record.average_processing_time == 0.0 and total_req == 1:
                     metrics_record.average_processing_time = total_duration
                 else:
-                    # Weighted average: (old_avg * (n-1) + new_value) / n
+                    # Vážený průměr: (starý_průměr * (n-1) + nová_hodnota) / n
                     metrics_record.average_processing_time = ((metrics_record.average_processing_time * (total_req - 1)) + total_duration) / total_req
 
             if not success:
-                # Track error type in ErrorMetrics table
+                # Sledování typů chyb v tabulce ErrorMetrics
                 error_message = result_data.get("message", "Unknown error")
-                # Limit error message length if necessary
+                # Omezení délky chybové zprávy v případě potřeby
                 error_message = error_message[:255] if error_message else "Unknown error"
 
                 db_result = await db.execute(select(models.ErrorMetrics).filter(models.ErrorMetrics.error_message == error_message))
@@ -219,7 +239,7 @@ async def log_request_end(request_context: Dict[str, Any], success: bool, result
                     error_record.count += 1
                 else:
                     db.add(models.ErrorMetrics(error_message=error_message, count=1))
-            # --- End Aggregate Metrics Update ---
+            # --- Konec aktualizace agregovaných metrik ---
 
             await db.commit()
 
@@ -227,7 +247,7 @@ async def log_request_end(request_context: Dict[str, Any], success: bool, result
         logger.error(f"Failed to log request end to database: {e}")
         await db.rollback()
 
-    # Log to file
+    # Protokolování do souboru
     log_message = f"Request {request_context['request_id']} completed: success={success}, duration={total_duration:.2f}s"
     verdict = "UNKNOWN"
     confidence = 0.0
@@ -247,15 +267,19 @@ async def log_request_end(request_context: Dict[str, Any], success: bool, result
 
 
 async def log_error(request_context: Dict[str, Any], error: Exception, step: Optional[str] = None) -> None:
-    """Log an error that occurred during processing"""
+    """Zaprotokoluje chybu, která nastala během zpracování
+    
+    Zaznamená typ chyby, krok, ve kterém nastala, a aktualizuje
+    statistiky chyb v databázi.
+    """
     error_type = type(error).__name__
-    error_str = str(error)[:255]  # Limit length
+    error_str = str(error)[:255]  # Omezení délky
     logger.error(f"Error in request {request_context['request_id']} at step {step}: {error_type} - {error_str}")
 
-    # --- Aggregate Metrics Update ---
+    # --- Aktualizace agregovaných metrik ---
     try:
         async with AsyncSessionLocal() as db:
-            # Track error type in ErrorMetrics table
+            # Sledování typu chyby v tabulce ErrorMetrics
             error_key = f"ProcessingError: {error_type}"
             
             result = await db.execute(select(models.ErrorMetrics).filter(models.ErrorMetrics.error_message == error_key))
@@ -271,14 +295,18 @@ async def log_error(request_context: Dict[str, Any], error: Exception, step: Opt
     except Exception as e:
         logger.error(f"Failed to update error metrics in database: {e}")
         await db.rollback()
-    # --- End Aggregate Metrics Update ---
+    # --- Konec aktualizace agregovaných metrik ---
 
 
 async def log_external_api_failure(request_context: Dict[str, Any], service_name: str,
                           error: Exception, response_code: Optional[int] = None) -> None:
-    """Log failures when calling external APIs"""
+    """Zaprotokoluje selhání při volání externích API
+    
+    Zaznamená typ chyby, službu, která selhala, a aktualizuje
+    statistiky selhání externích API v databázi.
+    """
     error_type = type(error).__name__
-    error_str = str(error)[:255]  # Limit length
+    error_str = str(error)[:255]  # Omezení délky
     error_details = {
         "service": service_name,
         "error_type": error_type,
@@ -289,10 +317,10 @@ async def log_external_api_failure(request_context: Dict[str, Any], service_name
     logger.error(f"External API failure in request {request_context['request_id']}: "
                 f"{service_name} - {error_type} - {error_str}")
 
-    # --- Aggregate Metrics Update ---
+    # --- Aktualizace agregovaných metrik ---
     try:
         async with AsyncSessionLocal() as db:
-            # Track API error type in ErrorMetrics table
+            # Sledování typu API chyby v tabulce ErrorMetrics
             error_key = f"{service_name}_api_error: {error_type}"
             
             result = await db.execute(select(models.ErrorMetrics).filter(models.ErrorMetrics.error_message == error_key))
@@ -308,4 +336,4 @@ async def log_external_api_failure(request_context: Dict[str, Any], service_name
     except Exception as e:
         logger.error(f"Failed to update API error metrics in database: {e}")
         await db.rollback()
-    # --- End Aggregate Metrics Update ---
+    # --- Konec aktualizace agregovaných metrik ---

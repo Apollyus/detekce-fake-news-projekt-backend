@@ -9,6 +9,7 @@ from source.modules.schemas import FormSubmission as FormSubmissionSchema
 from source.modules.models import FormSubmission as FormSubmissionModel
 from source.modules.admin_auth import admin_required
 
+# Router pro obsluhu formulářových endpointů
 router = APIRouter()
 
 @router.post("/submit", response_model=FormSubmissionSchema)
@@ -16,8 +17,14 @@ async def submit_form(
     form: FormSubmissionSchema,
     db: AsyncSession = Depends(get_db)
 ):
+    """
+    Endoint pro odeslání kontaktního formuláře.
+    
+    Omezuje odesílání na jeden formulář denně z jednoho emailu.
+    Ukládá data formuláře do databáze.
+    """
     try:
-        # Check for existing submissions
+        # Kontrola, zda již dnes nebyl odeslán formulář se stejným emailem
         result = await db.execute(
             select(FormSubmissionModel).filter(
                 FormSubmissionModel.email == form.email,
@@ -32,7 +39,7 @@ async def submit_form(
                 detail="Již jste dnes odeslali formulář s tímto emailem"
             )
 
-        # Create new submission
+        # Vytvoření nového záznamu v databázi
         db_submission = FormSubmissionModel(
             full_name=form.full_name,
             email=form.email,
@@ -43,16 +50,20 @@ async def submit_form(
         db.add(db_submission)
         
         try:
+            # Potvrzení transakce a načtení nově vytvořeného záznamu
             await db.commit()
             await db.refresh(db_submission)
             return db_submission
         except Exception:
+            # V případě chyby vrátíme změny zpět
             await db.rollback()
             raise HTTPException(status_code=500, detail="Database error")
             
     except HTTPException as he:
+        # Propagace HTTP výjimek beze změny
         raise he
     except Exception as e:
+        # Zachycení obecných výjimek
         raise HTTPException(
             status_code=500,
             detail=f"Error: {str(e)}"
@@ -61,25 +72,25 @@ async def submit_form(
 @router.get("/submissions", response_model=List[Dict[str, Any]])
 async def get_form_submissions(
     limit: int = None,
-    _: bool = Depends(admin_required),  # Use the admin dependency
-    db: AsyncSession = Depends(get_db)   # Use AsyncSession for database connection
+    _: bool = Depends(admin_required),  # Použití admin závislosti pro ověření
+    db: AsyncSession = Depends(get_db)   # Použití AsyncSession pro připojení k databázi
 ):
     """
-    Get form submissions with optional limit on number of recent entries.
-    This endpoint requires admin authentication via token.
+    Získání seznamu odeslaných formulářů s volitelným omezením počtu nejnovějších záznamů.
+    Tento endpoint vyžaduje admin autentizaci pomocí tokenu.
     
-    Parameters:
-    - limit: Optional. Number of most recent submissions to return
-    - X-Admin-Token: Required header with admin token from /admin-login
+    Parametry:
+    - limit: Volitelný. Počet nejnovějších záznamů k vrácení
+    - X-Admin-Token: Povinná hlavička s admin tokenem z /admin-login
     
-    Returns a list of form submissions with their complete content.
+    Vrací seznam odeslaných formulářů s jejich kompletním obsahem.
     """
-    # Query with optional limit on most recent submissions
+    # Dotaz s volitelným omezením počtu nejnovějších záznamů
     query = await db.execute(select(FormSubmissionModel).order_by(FormSubmissionModel.created_at.desc()))
     
-    submissions = query.scalars().all()  # Fetch all the results asynchronously
+    submissions = query.scalars().all()  # Asynchronní načtení všech výsledků
     
-    # Convert to dictionary format for response
+    # Převod na formát slovníku pro odpověď
     result = []
     for submission in submissions:
         result.append({

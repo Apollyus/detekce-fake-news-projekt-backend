@@ -1,21 +1,21 @@
 from openai import OpenAI
-from source.modules.config import config  # Import the config instance, not the module
+from source.modules.config import config  # Import instance konfigurace, ne modul
 
-api_key = config.OPENAI_API_KEY  # Use the API key from the config
+api_key = config.OPENAI_API_KEY  # Použití API klíče z konfigurace
 
-# Initialize with api_key as a named parameter
+# Inicializace klienta s API klíčem jako pojmenovaným parametrem
 client = OpenAI(api_key=api_key)
 
 def evaluate_claim(prompt, found_claims):
     """
-    Evaluate the truthfulness of a prompt against a list of found claims.
+    Vyhodnocení pravdivosti tvrzení na základě seznamu nalezených tvrzení.
     
-    Args:
-        prompt (str): The claim to be evaluated
-        found_claims (list): List of relevant claims found on the internet
+    Parametry:
+        prompt (str): Tvrzení, které má být vyhodnoceno
+        found_claims (list): Seznam relevantních tvrzení nalezených na internetu
     
-    Returns:
-        dict: Contains structured evaluation result
+    Vrací:
+        dict: Obsahuje strukturovaný výsledek vyhodnocení
     """
     claims_text = "\n".join([f"- {claim}" for claim in found_claims])
     
@@ -50,11 +50,11 @@ def evaluate_claim(prompt, found_claims):
         "content": f"Claim to verify: {prompt}\n\nAvailable evidence:\n{claims_text}"
     }
 ],
-        temperature=0.3,  # Lower temperature for more consistent formatting
+        temperature=0.3,  # Nižší teplota pro konzistentnější formátování
         max_tokens=1000
     )
 
-    # Parse the response into structured format
+    # Parsování odpovědi do strukturovaného formátu
     raw_analysis = response.choices[0].message.content
     lines = raw_analysis.strip().split('\n')
     structured_result = {}
@@ -65,7 +65,7 @@ def evaluate_claim(prompt, found_claims):
             key = key.strip()
             value = value.strip()
             
-            # Convert confidence to float
+            # Převod hodnoty confidence na float
             if key == 'CONFIDENCE':
                 try:
                     value = float(value)
