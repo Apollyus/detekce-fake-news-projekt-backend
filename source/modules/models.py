@@ -57,6 +57,23 @@ class TelemetryRecord(Base):
     steps_data = Column(String)  # JSON řetězec s daty o jednotlivých krocích
     processing_data = Column(String)  # JSON řetězec s daty o zpracování
     
+    # Vztah k hodnocení od uživatele
+    user_feedback = relationship("UserFeedback", back_populates="telemetry_record", uselist=False)
+
+class UserFeedback(Base):
+    """Model pro hodnocení výsledků od uživatelů"""
+    __tablename__ = "user_feedback"
+
+    id = Column(Integer, primary_key=True, index=True)
+    telemetry_record_id = Column(Integer, ForeignKey("telemetry_records.id"), nullable=False)
+    rating = Column(Integer, nullable=False)  # Hodnocení 1-5
+    comment = Column(String, nullable=True)  # Volitelný komentář
+    is_correct = Column(Boolean, nullable=False)  # Zda byla analýza správná
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Vztah k záznamu telemetrie
+    telemetry_record = relationship("TelemetryRecord", back_populates="user_feedback")
+
 class Metrics(Base):
     """Model pro agregované metriky systému"""
     __tablename__ = "metrics" # Název tabulky odpovídá původnímu

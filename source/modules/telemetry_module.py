@@ -173,11 +173,14 @@ def log_processing_data(request_context: Dict[str, Any], data_type: str, data: A
     """
     request_context["processing_data"][data_type] = data
 
-async def log_request_end(request_context: Dict[str, Any], success: bool, result_data: Dict[str, Any]) -> None:
+async def log_request_end(request_context: Dict[str, Any], success: bool, result_data: Dict[str, Any]) -> int:
     """Zaprotokoluje ukončení požadavku s výsledky
     
     Vypočítá celkovou dobu trvání požadavku, aktualizuje statistiky úspěšnosti/selhání
     a ukládá záznam do databáze včetně průběžných dat.
+    
+    Returns:
+        int: ID vytvořeného záznamu telemetrie
     """
     end_time = time.time()
     total_duration = end_time - request_context["start_time"]
@@ -201,6 +204,8 @@ async def log_request_end(request_context: Dict[str, Any], success: bool, result
             # Vložení záznamu TelemetryRecord
             db_record = models.TelemetryRecord(**request_record_data)
             db.add(db_record)
+            await db.flush()  # Získáme ID před commit
+            record_id = db_record.id
 
             # --- Aktualizace agregovaných metrik ---
             db_result = await db.execute(select(models.Metrics).filter(models.Metrics.id == 1))
@@ -242,10 +247,12 @@ async def log_request_end(request_context: Dict[str, Any], success: bool, result
             # --- Konec aktualizace agregovaných metrik ---
 
             await db.commit()
+            return record_id
 
     except Exception as e:
         logger.error(f"Failed to log request end to database: {e}")
         await db.rollback()
+        raise e
 
     # Protokolování do souboru
     log_message = f"Request {request_context['request_id']} completed: success={success}, duration={total_duration:.2f}s"

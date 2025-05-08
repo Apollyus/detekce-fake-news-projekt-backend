@@ -77,3 +77,22 @@ class FormSubmission(BaseModel):
         if not re.match(r'^[a-zA-Z\s-]+$', v):
             raise ValueError('Jméno by mělo obsahovat pouze písmena, mezery a pomlčky')
         return v
+
+class UserFeedbackCreate(BaseModel):
+    """Schéma pro vytvoření zpětné vazby od uživatele"""
+    telemetry_record_id: int
+    rating: int  # Hodnocení 1-5
+    comment: Optional[str] = None  # Volitelný komentář
+    is_correct: bool  # Zda byla analýza správná nebo ne
+
+class UserFeedbackOut(BaseModel):
+    """Schéma pro výstup zpětné vazby"""
+    id: int
+    telemetry_record_id: int
+    rating: int
+    comment: Optional[str]
+    is_correct: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
