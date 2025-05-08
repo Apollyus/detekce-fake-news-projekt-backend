@@ -3,6 +3,7 @@ from source.modules.vyhledavani_googlem_module import google_search
 from source.modules.filtrace_clanku_module import filter_relevant_articles
 from source.modules.finalni_rozhodnuti_module import evaluate_claim
 from source.modules.telemetry_module import log_request_start, log_step_time, log_request_end, log_error, log_processing_data
+from source.modules.scraping_module import scrape_article, detect_portal
 
 """
 Servisní modul pro detekci fake news.
@@ -53,8 +54,9 @@ async def process_fake_news(prompt: str):
     3. Generování vyhledávací fráze a klíčových slov.
     4. Vyhledávání Googlem.
     5. Filtrování relevantních článků.
-    6. Vyhodnocení tvrzení na základě snippetu článků.
-    7. Zaznamenání výsledků a ukončení telemetry.
+    6. Scraping obsahu článků.
+    7. Vyhodnocení tvrzení na základě plného obsahu článků.
+    8. Zaznamenání výsledků a ukončení telemetry.
 
     Parametry:
         prompt: Text k ověření.
@@ -124,7 +126,7 @@ async def process_fake_news(prompt: str):
             await log_request_end(request_context, False, result)
             return result
             
-        # 5) Filtrování relevantních článků podle klíčových slov
+        '''# 5) Filtrování relevantních článků podle klíčových slov
         filtered_articles = filter_relevant_articles(google_search_results, keywords)
         log_step_time(request_context, "article_filtering")
         
@@ -141,13 +143,43 @@ async def process_fake_news(prompt: str):
                 "message": "Nenašli jsme žádné relevantní články pro ověření."
             }
             await log_request_end(request_context, False, result)
+            return result'''
+        
+        filtered_articles = google_search_results
+        
+        # 6) Scraping obsahu článků
+        scraped_articles = []
+        for article in filtered_articles:
+            try:
+                portal = detect_portal(article["link"])
+                if portal != "unknown":
+                    scraped_content = scrape_article(article["link"], portal)
+                    if scraped_content and scraped_content.get("content"):
+                        article["full_content"] = scraped_content["content"]
+                        article["source"] = scraped_content["source"]
+                        article["published_date"] = scraped_content["published_date"]
+                        article["author"] = scraped_content["author"]
+                        scraped_articles.append(article)
+            except Exception as e:
+                log_processing_data(request_context, "scraping_error", f"Error scraping {article['link']}: {str(e)}")
+                continue
+        
+        log_step_time(request_context, "article_scraping")
+        
+        if not scraped_articles:
+            result = {
+                "status": "error",
+                "message": "Nepodařilo se získat obsah článků pro ověření.",
+                "filtered_articles": filtered_articles
+            }
+            await log_request_end(request_context, False, result)
             return result
         
-        # 6) Připrav snippety pro vyhodnocení tvrzení
-        filtered_snippets = [article["snippet"] for article in filtered_articles]
+        # 7) Připrav obsah článků pro vyhodnocení tvrzení
+        article_contents = [article["full_content"] for article in scraped_articles]
         
-        # 7) Vyhodnocení tvrzení
-        rozhodnuti = evaluate_claim(prompt, filtered_snippets)
+        # 8) Vyhodnocení tvrzení
+        rozhodnuti = evaluate_claim(prompt, article_contents)
         log_step_time(request_context, "claim_evaluation")
         
         # Zaznamenání výsledku vyhodnocení
@@ -158,7 +190,7 @@ async def process_fake_news(prompt: str):
                 "status": "success",
                 "message": "Ověření bylo úspěšné.",
                 "result": rozhodnuti,
-                "filtered_articles": filtered_articles
+                "filtered_articles": scraped_articles
             }
             await log_request_end(request_context, True, result)
             return result
@@ -167,13 +199,13 @@ async def process_fake_news(prompt: str):
         result = {
             "status": "error",
             "message": "Chyba při ověřování tvrzení.",
-            "filtered_articles": filtered_articles
+            "filtered_articles": scraped_articles
         }
         await log_request_end(request_context, False, result)
         return result
 
     except Exception as e:
-        # 8) Záznam neočekávaných chyb
+        # 9) Záznam neočekávaných chyb
         await log_error(request_context, e)
         result = {
             "status": "error",

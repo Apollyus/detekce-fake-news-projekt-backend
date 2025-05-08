@@ -9,98 +9,126 @@ import json     # Import json for handling potential errors
 # Adjusted expected_verdict to use strings "TRUE"/"FALSE"
 test_data = [
     {
-        "text": "Dne 28. dubna 2025 došlo k masivnímu výpadku napájení na Pyrenejském poloostrově, který postihl Španělsko i Portugalsko.",
+        "text": "Prezident Petr Pavel se 8. května 2025 zúčastnil oslav Dne vítězství u Národního památníku na Vítkově. [17]",
         "expected_status": "success",
         "expected_verdict": "TRUE",
         "is_gibberish": False
     },
     {
-        "text": "27. dubna 2025 Aaron Gordon zaznamenal vítězný dunk v poslední vteřině, když Denver Nuggets porazili Los Angeles Clippers 101–99 a vyrovnali sérii na 2–2.",
+        "text": "Česká národní banka na svém zasedání 7. května 2025 snížila základní úrokovou sazbu na 3,5 %. [15]",
         "expected_status": "success",
         "expected_verdict": "TRUE",
         "is_gibberish": False
     },
     {
-        "text": "Němečtí konzervativci pod vedením Friedricha Merze uzavřeli 9. dubna 2025 koaliční dohodu se SPD.",
+        "text": "Podle květnové prognózy ČNB z roku 2025 se očekává, že celková inflace v České republice v květnu dosáhne 2,3 %. [2]",
         "expected_status": "success",
         "expected_verdict": "TRUE",
         "is_gibberish": False
     },
     {
-        "text": "Americký Nejvyšší soud 29. dubna 2025 projednává spor o pravomoci prezidenta Trumpa odvolávat předsedu Federálního rezervního systému.",
+        "text": "Dne 28. dubna 2025 došlo k masivnímu výpadku dodávek elektřiny, který postihl celé Španělsko a Portugalsko. [7]",
         "expected_status": "success",
         "expected_verdict": "TRUE",
         "is_gibberish": False
     },
     {
-        "text": "Bílý dům 7. dubna 2025 nařídil federálním agenturám jmenovat hlavní oficiály pro umělou inteligenci a vytvořit strategické rámce pro AI.",
+        "text": "Organizace Post Bellum odhalila 7. května 2025 venkovní expozici připomínající existenci ženského koncentračního tábora Svatava. [16]",
         "expected_status": "success",
         "expected_verdict": "TRUE",
         "is_gibberish": False
     },
     {
-        "text": "Index spotřebitelské důvěry GfK v Německu se v květnu 2025 zlepšil na -20,6 bodu z -24,3 bodu.",
-        "expected_status": "success",
-        "expected_verdict": "TRUE",
-        "is_gibberish": False
-    },
-    {
-        "text": "Evropská komise 1. dubna 2025 navrhla prodloužení plnění emisních cílů CO₂ pro automobilový průmysl na období 2025–2027.",
-        "expected_status": "success",
-        "expected_verdict": "TRUE",
-        "is_gibberish": False
-    },
-    {
-        "text": "Finsko 29. dubna 2025 podpořilo návrh EU snížit čisté skleníkové emise o 90 % do roku 2040.",
-        "expected_status": "success",
-        "expected_verdict": "TRUE",
-        "is_gibberish": False
-    },
-    {
-        "text": "Biden během summitu NATO v dubnu 2025 zrušil všechny sankce proti Rusku.",
+        "text": "Ruský prezident Vladimir Putin navštívil Prahu 8. května 2025, aby se zúčastnil oslav 80. výročí konce druhé světové války. [6]",
         "expected_status": "success",
         "expected_verdict": "FALSE",
         "is_gibberish": False
     },
     {
-        "text": "Banány obsahují radioaktivní látky.",
+        "text": "Evropská unie na summitu konaném 5. května 2025 schválila s okamžitou platností úplný zákaz prodeje nových automobilů se spalovacími motory. [8]",
         "expected_status": "success",
-        "expected_verdict": "TRUE", # Changed to string "TRUE"
+        "expected_verdict": "FALSE",
         "is_gibberish": False
     },
     {
-        "text": "Země je placatá a důkazy jsou skryté.",
+        "text": "Vědci z Massachusettského technologického institutu (MIT) oznámili 7. května 2025 objev univerzálního léku na všechny typy rakoviny. [9]",
         "expected_status": "success",
-        "expected_verdict": "FALSE", # Changed to string "FALSE"
+        "expected_verdict": "FALSE",
         "is_gibberish": False
     },
     {
-        "text": "V roce 2022 začala válka na Ukrajině kvůli rozšíření NATO.",
+        "text": "Podle studie zveřejněné začátkem května 2025 pravidelná konzumace hořké čokolády prokazatelně prodlužuje průměrnou délku života o pět let. [10]",
         "expected_status": "success",
-        "expected_verdict": "FALSE", # Changed to string "FALSE"
+        "expected_verdict": "FALSE",
         "is_gibberish": False
     },
     {
-        "text": "Zelený čaj zvyšuje inteligenci o 20 bodů IQ.",
+        "text": "Dne 1. května 2025 bylo definitivně potvrzeno, že na povrchu Marsu existují rozsáhlé oblasti s tekoucí vodou a jednoduchými formami mikrobiálního života. [11]",
         "expected_status": "success",
-        "expected_verdict": "FALSE", # Changed to string "FALSE"
+        "expected_verdict": "FALSE",
         "is_gibberish": False
     },
     {
-        "text": "a",
-        "expected_status": "error",
-        "expected_verdict": None,
-        "is_gibberish": True
+        "text": "Vláda České republiky na svém zasedání 7. května 2025 zamítla zprávu o adaptaci na změnu klimatu pro rok 2025. [12]", # Opak pravdivé zprávy
+        "expected_status": "success",
+        "expected_verdict": "FALSE",
+        "is_gibberish": False
     },
     {
-        "text": "Mars má dvě přirozené družice: Phobos a Deimos.",
+        "text": "Ve Vatikánu dne 7. května 2025 začalo konkláve pro volbu nového papeže, přičemž první kolo hlasování bylo neúspěšné. [14]",
         "expected_status": "success",
-        "expected_verdict": "TRUE", # Changed to string "TRUE"
+        "expected_verdict": "TRUE",
+        "is_gibberish": False
+    },
+    {
+        "text": "Duben 2025 byl nejméně tragickým měsícem na českých silnicích za poslední dekádu, s pouze 5 oběťmi dopravních nehod. [18]", # Opak pravdivé zprávy
+        "expected_status": "success",
+        "expected_verdict": "FALSE",
+        "is_gibberish": False
+    },
+    {
+        "text": "Francouzská vláda přislíbila finanční pomoc ve výši 3 miliard eur na obnovu karibského ostrova Martinik po nedávném hurikánu. [19]", # Změna ostrova oproti pravdivé zprávě
+        "expected_status": "success",
+        "expected_verdict": "FALSE",
+        "is_gibberish": False
+    },
+    {
+        "text": "Experimentální lék úspěšně obnovil sluch u laboratorních myší díky blokaci proteinu Prox1, oznámili vědci 7. května 2025. [20]", # Změna smyslu oproti pravdivé zprávě (zrak vs sluch)
+        "expected_status": "success",
+        "expected_verdict": "FALSE",
+        "is_gibberish": False
+    },
+    {
+        "text": "Papež František, který zemřel v dubnu 2025, osobně zahájil charitativní fotbalový turnaj ve Vatikánu dne 5. května 2025. [22, 24]",
+        "expected_status": "success",
+        "expected_verdict": "FALSE",
+        "is_gibberish": False
+    },
+    {
+        "text": "Mistrovství světa v ledním hokeji 2025, pořádané Švédskem a Dánskem, bylo zahájeno již 1. května 2025.", # Chybný datum zahájení
+        "expected_status": "success",
+        "expected_verdict": "FALSE",
+        "is_gibberish": False
+    },
+    {
+        "text": "Renáta Kellnerová s rodinou byla v květnu 2025 sesazena z pozice nejbohatšího člověka v Česku Danielem Křetínským.", # Opak pravdivé zprávy
+        "expected_status": "success",
+        "expected_verdict": "FALSE",
+        "is_gibberish": False
+    },
+    {
+        "text": "Služba pro internetovou telefonii Skype ukončila svůj provoz celosvětově 5. května 2025. [27]",
+        "expected_status": "success",
+        "expected_verdict": "TRUE",
+        "is_gibberish": False
+    },
+    {
+        "text": "Čínský prezident Si Ťin-pching dne 8. května 2025 jednal v Budapešti s maďarskými představiteli.",
+        "expected_status": "success",
+        "expected_verdict": "TRUE", # Na základě dřívějších informací o jeho návštěvě
         "is_gibberish": False
     }
 ]
-
-
 # --- API Configuration ---
 # !!! IMPORTANT: Update this URL to your actual FastAPI endpoint !!!
 API_ENDPOINT = "http://localhost:8000/api/v2/fake_news_check/" # Adjust path as needed
@@ -135,14 +163,14 @@ for i, test_case in enumerate(test_data):
         # Assuming the string verdict ("TRUE"/"FALSE") is directly under the 'result' key
         if result.get('status') == 'success' and 'result' in result:
              # Check if the result itself is the string OR if it's nested further
-             if isinstance(result['result'], str) and result['result'] in ["TRUE", "FALSE"]:
+             if isinstance(result['result'], str):
                  actual_verdict = result['result']
              # Example if nested: check if result['result'] is a dict and contains the string
-             elif isinstance(result.get('result'), dict) and 'verdict' in result['result'] and isinstance(result['result']['verdict'], str) and result['result']['verdict'] in ["TRUE", "FALSE"]:
-                 actual_verdict = result['result']['verdict'] # Adjust 'verdict' key if needed
+             elif isinstance(result.get('result'), dict) and 'verdict' in result['result']:
+                 actual_verdict = result['result']['verdict']
              else:
-                 print(f"Warning: Could not extract string verdict ('TRUE'/'FALSE') from result: {result.get('result', 'N/A')}")
-                 actual_verdict = 'N/A' # Mark as not available if structure is unexpected
+                 print(f"Warning: Could not extract verdict from result: {result.get('result', 'N/A')}")
+                 actual_verdict = 'N/A'
 
              print(f"Actual Verdict: {actual_verdict}")
 
@@ -153,8 +181,8 @@ for i, test_case in enumerate(test_data):
         # Check if the status matches
         if result.get('status') == test_case["expected_status"]:
             if test_case["expected_status"] == "success":
-                # If status is success, check the STRING verdict
-                # Compare the extracted actual_verdict string with the expected string
+                # If status is success, check the verdict
+                # Compare the extracted actual_verdict with the expected verdict
                 if actual_verdict == test_case["expected_verdict"]:
                     is_correct = True
             else: # expected_status is 'error'
@@ -211,10 +239,10 @@ for res in results:
 
         # Extract actual verdict string for display, handling potential nesting and non-string types
         if actual_status == 'success' and 'result' in res['result']:
-             if isinstance(res['result']['result'], str) and res['result']['result'] in ["TRUE", "FALSE"]:
+             if isinstance(res['result']['result'], str):
                  actual_verdict_display = res['result']['result']
-             elif isinstance(res['result'].get('result'), dict) and 'verdict' in res['result']['result'] and isinstance(res['result']['result']['verdict'], str) and res['result']['result']['verdict'] in ["TRUE", "FALSE"]:
-                 actual_verdict_display = res['result']['result']['verdict'] # Adjust 'verdict' key if needed
+             elif isinstance(res['result'].get('result'), dict) and 'verdict' in res['result']['result']:
+                 actual_verdict_display = res['result']['result']['verdict']
              else:
                  # Display the raw result if it's not the expected string structure
                  actual_verdict_display = f"(Unexpected format: {res['result'].get('result', 'N/A')})"

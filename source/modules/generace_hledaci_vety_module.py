@@ -13,34 +13,37 @@ def check_and_generate_search_phrase(user_input: str):
     current_date = datetime.now().strftime("%d. %m. %Y")
     
     prompt = f"""
-        Zhodnoť následující tvrzení a rozhodni, zda dává smysl a je dostatečně konkrétní, aby se podle něj dalo hledat na internetu.
-        Pokud ano, vytvoř z něj ideální krátkou frázi, která by se dala použít ve vyhledávači (např. Google).
-        Pokud tvrzení nedává smysl, je příliš vágní nebo neobsahuje ověřitelné informace, napiš "INVALID".
+        Zhodnoť následující text a rozhodni, zda jde o tvrzení, které lze ověřit na internetu.
+        
+        Typy textů:
+        1. OVĚŘITELNÉ TVRZENÍ - obsahuje konkrétní fakta, která lze ověřit (např. "Prezident Zeman podepsal zákon")
+        2. KONVERZAČNÍ TEXT - běžná konverzace, pozdravy, otázky (např. "Jak se máš?")
+        3. NEVALIDNÍ TVRZENÍ - příliš vágní, nesmyslné nebo neobsahuje ověřitelné informace
+        
+        Pokud jde o ověřitelné tvrzení:
+        - Vytvoř z něj ideální krátkou frázi pro vyhledávač
+        - Nastav valid=true
+        - Vygeneruj klíčová slova
+        
+        Pokud jde o konverzační text:
+        - Nastav valid=true
+        - Nastav search_query=""
+        - Nastav keywords=[]
+        - Nastav is_conversational=true
+        
+        Pokud jde o nevalidní tvrzení:
+        - Nastav valid=false
+        - Nastav search_query=""
+        - Nastav keywords=[]
 
         Aktuální datum: {current_date}
-        Tvrzení: "{user_input}"
-
-        Při generování hledací fráze:
-        1. Zohledni aktuální datum - zejména u zpráv, které se týkají aktuálního dění
-        2. Vynech pomocná slova jako "byl", "bylo", "je" apod., pokud nejsou klíčové pro význam
-        3. Zaměř se na klíčová fakta a konkrétní informace z tvrzení
-        4. Optimalizuj frázi pro vyhledávače - používej relevantní klíčová slova
-
-        Navíc vytvoř seznam 3-5 klíčových slov nebo krátkých frází, které nejlépe vystihují podstatu tvrzení.
-        Tyto klíčová slova budou použita pro filtrování relevantních zpravodajských článků k ověření.
-        Klíčová slova by měla:
-        1. Obsahovat podstatná jména a vlastní jména z tvrzení
-        2. Zachytit hlavní aktéry, místa, události nebo témata
-        3. Být seřazena podle důležitosti (nejdůležitější první)
-        4. Být dostatečně specifická, ale ne příliš dlouhá
-        5. Pro každé klíčové slovo uveď 1-3 různé gramatické tvary (např. jednotné/množné číslo, různé pády), pokud je to možné
-        6. Pro jména osob zahrň jak celé jméno, tak i samostatně příjmení
-        7. Pro názvy událostí nebo organizací uveď jak plný název, tak i běžně používané zkratky
+        Text: "{user_input}"
 
         Odpověz přesně v tomto JSON formátu bez jakýchkoliv dalších komentářů:
         {{
         "search_query": "hledací fráze nebo prázdný řetězec",
         "valid": true nebo false,
+        "is_conversational": true nebo false,
         "confidence": číslo od 0.0 do 1.0,
         "keywords": ["klíčové slovo 1", "klíčové slovo 2", "klíčové slovo 3", ...]
         }}
@@ -76,6 +79,7 @@ def check_and_generate_search_phrase(user_input: str):
         result = {
             "search_query": "",
             "valid": False,
+            "is_conversational": False,
             "confidence": 0.0,
             "keywords": []
         }
@@ -85,6 +89,19 @@ def check_and_generate_search_phrase(user_input: str):
 
 # 💡 TEST
 if __name__ == "__main__":
-    user_text = "Zemřela česká zpěvačka Anna K."
-    result = check_and_generate_search_phrase(user_text)
-    print("Výsledek:", result)
+    test_cases = [
+        "Zemřela česká zpěvačka Anna K.",  # Ověřitelné tvrzení
+        "Jak se máš?",  # Konverzační text
+        "Slunce je žluté a obloha je modrá",  # Nevalidní tvrzení (obecná pravda)
+        "Prezident Pavel podepsal nový zákon o daních",  # Ověřitelné tvrzení
+        "Dobrý den, jaké je dnes počasí?"  # Konverzační text
+    ]
+    
+    print("Testování různých typů vstupů:")
+    print("-" * 50)
+    
+    for test_input in test_cases:
+        print(f"\nTest vstupu: '{test_input}'")
+        result = check_and_generate_search_phrase(test_input)
+        print("Výsledek:", result)
+        print("-" * 50)

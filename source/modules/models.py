@@ -56,7 +56,7 @@ class TelemetryRecord(Base):
     error_message = Column(String, nullable=True) # Chybová zpráva (pokud nastala)
     steps_data = Column(String)  # JSON řetězec s daty o jednotlivých krocích
     processing_data = Column(String)  # JSON řetězec s daty o zpracování
-
+    
 class Metrics(Base):
     """Model pro agregované metriky systému"""
     __tablename__ = "metrics" # Název tabulky odpovídá původnímu
