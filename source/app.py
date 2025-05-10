@@ -85,6 +85,9 @@ from fastapi.middleware.cors import CORSMiddleware
 import os
 from fastapi.responses import FileResponse
 from starlette.middleware.sessions import SessionMiddleware
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from source.routes.fake_news_routes import limiter
 from source.modules.config import config
 from source.routes.fake_news_routes import router as fake_news_router
 from source.routes.user_routes import router as user_router
@@ -186,6 +189,9 @@ if env == "production":
     ]
 else:
     origins = ["*"]
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 @app.on_event("startup")
 async def on_startup():

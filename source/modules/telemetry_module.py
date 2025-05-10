@@ -7,6 +7,7 @@ import logging
 from datetime import datetime
 from typing import Dict, Any, Optional
 from pathlib import Path
+import random
 
 # Import komponentů SQLAlchemy pro asynchronní operace
 from sqlalchemy import func, select
@@ -104,7 +105,9 @@ async def log_request_start(prompt: str) -> Dict[str, Any]:
     Vytváří jedinečné ID požadavku, zaznamená čas začátku a 
     aktualizuje celkové statistiky požadavků v databázi.
     """
-    request_id = f"{int(time.time())}-{hash(prompt) % 10000}"
+    current_time = time.time()
+    random_component = random.randint(1000, 9999)
+    request_id = f"{int(current_time)}-{hash(prompt) % 10000}-{random_component}"
     start_time = time.time()
 
     truncated_prompt = prompt[:100] + "..." if len(prompt) > 100 else prompt
