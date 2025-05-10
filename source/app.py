@@ -87,6 +87,7 @@ from fastapi.responses import FileResponse
 from starlette.middleware.sessions import SessionMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from source.middleware.rate_limit_monitor import RateLimitMonitorMiddleware
 from source.routes.fake_news_routes import limiter
 from source.modules.config import config
 from source.routes.fake_news_routes import router as fake_news_router
@@ -202,7 +203,10 @@ async def on_startup():
 # Middleware setup
 app.add_middleware(
     SessionMiddleware,
-    secret_key=config.SECRET_KEY,
+    secret_key=config.SECRET_KEY
+)
+app.add_middleware(
+    RateLimitMonitorMiddleware
 )
 app.add_middleware(
     CORSMiddleware,

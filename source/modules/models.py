@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Float, ForeignKey
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Float, ForeignKey, Text
+from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship # Import pro definici vztahů mezi modely
 from datetime import datetime
 from .database import Base
@@ -95,3 +96,16 @@ class ErrorMetrics(Base):
     __tablename__ = "error_metrics" # Název tabulky odpovídá původnímu
     error_message = Column(String, primary_key=True) # Chybová zpráva jako primární klíč
     count = Column(Integer, default=0) # Počet výskytů této chyby
+
+class RateLimitStats(Base):
+    __tablename__ = "rate_limit_stats"
+
+    id = Column(Integer, primary_key=True, index=True)
+    timestamp = Column(DateTime(timezone=True), default=func.now(), index=True)
+    ip_address = Column(String(50), index=True)
+    path = Column(String(255))
+    limit_type = Column(String(20))  # "per_ip" nebo "global"
+    error_message = Column(Text, nullable=True)
+    
+    # Denní agregace pro reporting
+    day = Column(DateTime, index=True)  # jen datum bez času pro snadnou agregaci
