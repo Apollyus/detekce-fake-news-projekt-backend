@@ -3,14 +3,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from source.modules.database import get_db
 from source.modules.models import UserFeedback, TelemetryRecord
-from source.modules.schemas import UserFeedbackCreate, UserFeedbackOut
+from source.modules.schemas import UserFeedbackCreate, UserFeedbackOut, UserFeedbackWithPromptOut
 from source.modules.auth import get_current_user
 from source.modules.admin_auth import generate_admin_token, admin_required
 from typing import List
+from sqlalchemy.orm import joinedload
 
 router = APIRouter()
 
-@router.post("/feedback", response_model=UserFeedbackOut)
+@router.post("/", response_model=UserFeedbackOut)
 async def create_feedback(
     feedback: UserFeedbackCreate,
     current_user: dict = Depends(get_current_user),
@@ -35,20 +36,17 @@ async def create_feedback(
         )
     
     # Kontrola existence záznamu telemetrie
-    result = await db.execute(
-        select(TelemetryRecord).filter(TelemetryRecord.id == feedback.telemetry_record_id)
-    )
-    telemetry_record = result.scalar_one_or_none()
+    query = select(TelemetryRecord).where(TelemetryRecord.request_id == feedback.telemetry_id)
+    result = await db.execute(query)
+    record = result.scalar_one_or_none()
     
-    if not telemetry_record:
-        raise HTTPException(
-            status_code=404,
-            detail="Záznam telemetrie nenalezen"
-        )
+    if not record:
+        raise HTTPException(status_code=404, detail="Záznam telemetrie nebyl nalezen")
+    
     
     # Vytvoření nové zpětné vazby
     db_feedback = UserFeedback(
-        telemetry_record_id=feedback.telemetry_record_id,
+        telemetry_record_id=record.id,  # Zde použijeme číselné ID ze získaného záznamu
         rating=feedback.rating,
         comment=feedback.comment,
         is_correct=feedback.is_correct
@@ -66,25 +64,28 @@ async def create_feedback(
             detail=f"Chyba při ukládání zpětné vazby: {str(e)}"
         )
 
-@router.get("/feedback/{telemetry_id}", response_model=UserFeedbackOut)
+@router.get("/feedback/{telemetry_id}", response_model=UserFeedbackWithPromptOut)
 async def get_feedback(
-    telemetry_id: int,
+    telemetry_id: int,  # Stále používáme číselné ID pro interní API
     _: bool = Depends(admin_required),
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Získá zpětnou vazbu pro konkrétní záznam telemetrie.
+    Získá zpětnou vazbu pro konkrétní záznam telemetrie včetně promptu.
     
     Args:
         telemetry_id (int): ID záznamu telemetrie
-        current_user (dict): Data aktuálně přihlášeného uživatele
+        _ (bool): Admin autentizace
         db (AsyncSession): Databázová session
     
     Returns:
-        UserFeedbackOut: Zpětná vazba pro daný záznam
+        UserFeedbackWithPromptOut: Zpětná vazba pro daný záznam včetně promptu
     """
+    # Použijeme joinedload pro získání vztahu telemetry_record
     result = await db.execute(
-        select(UserFeedback).filter(UserFeedback.telemetry_record_id == telemetry_id)
+        select(UserFeedback)
+        .options(joinedload(UserFeedback.telemetry_record))
+        .filter(UserFeedback.telemetry_record_id == telemetry_id)
     )
     feedback = result.scalar_one_or_none()
     
@@ -94,27 +95,32 @@ async def get_feedback(
             detail="Zpětná vazba nenalezena"
         )
     
-    return feedback
+    # Vytvoříme odpověď s údaji z obou tabulek
+    response = {
+        "id": feedback.id,
+        "telemetry_record_id": feedback.telemetry_record_id,
+        "rating": feedback.rating,
+        "comment": feedback.comment,
+        "is_correct": feedback.is_correct,
+        "created_at": feedback.created_at,
+        "prompt": feedback.telemetry_record.prompt,  # Přidáme prompt z telemetry záznamu
+        "request_id": feedback.telemetry_record.request_id  # Přidáme UUID
+    }
+    
+    return response
 
-@router.get("/feedback/latest", response_model=List[UserFeedbackOut])
+@router.get("/feedback/latest", response_model=List[UserFeedbackWithPromptOut])
 async def get_latest_feedback(
     limit: int = Query(10, ge=1, le=100),
     _: bool = Depends(admin_required),
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Získá seznam posledních hodnocení.
-    
-    Args:
-        limit (int): Počet nejnovějších hodnocení k vrácení (1-100)
-        _ (bool): Admin autentizace
-        db (AsyncSession): Databázová session
-    
-    Returns:
-        List[UserFeedbackOut]: Seznam nejnovějších hodnocení
+    Získá seznam posledních hodnocení včetně promptů.
     """
     result = await db.execute(
         select(UserFeedback)
+        .options(joinedload(UserFeedback.telemetry_record))
         .order_by(UserFeedback.created_at.desc())
         .limit(limit)
     )
@@ -123,4 +129,18 @@ async def get_latest_feedback(
     if not feedbacks:
         return []
     
-    return feedbacks 
+    # Vytvoříme odpovědi s údaji z obou tabulek
+    responses = []
+    for feedback in feedbacks:
+        responses.append({
+            "id": feedback.id,
+            "telemetry_record_id": feedback.telemetry_record_id,
+            "rating": feedback.rating,
+            "comment": feedback.comment,
+            "is_correct": feedback.is_correct,
+            "created_at": feedback.created_at,
+            "prompt": feedback.telemetry_record.prompt,
+            "request_id": feedback.telemetry_record.request_id
+        })
+    
+    return responses

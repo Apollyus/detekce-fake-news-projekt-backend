@@ -80,7 +80,7 @@ class FormSubmission(BaseModel):
 
 class UserFeedbackCreate(BaseModel):
     """Schéma pro vytvoření zpětné vazby od uživatele"""
-    telemetry_record_id: int
+    telemetry_id: str  # UUID jako string, už ne číselné ID
     rating: int  # Hodnocení 1-5
     comment: Optional[str] = None  # Volitelný komentář
     is_correct: bool  # Zda byla analýza správná nebo ne
@@ -93,6 +93,20 @@ class UserFeedbackOut(BaseModel):
     comment: Optional[str]
     is_correct: bool
     created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class UserFeedbackWithPromptOut(BaseModel):
+    """Schéma pro výstup zpětné vazby včetně promptu"""
+    id: int
+    telemetry_record_id: int  # Interní ID (můžete zachovat pro debugging)
+    telemetry_id: str  # UUID pro veřejné API
+    rating: int
+    comment: Optional[str]
+    is_correct: bool
+    created_at: datetime
+    prompt: str  # Text, který byl ověřován
 
     class Config:
         from_attributes = True

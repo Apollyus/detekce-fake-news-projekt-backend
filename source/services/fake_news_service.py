@@ -74,8 +74,7 @@ async def process_fake_news(prompt: str):
                 "status": "error",
                 "message": "Zadaný text je příliš krátký pro ověření."
             }
-            telemetry_id = await log_request_end(request_context, False, result)
-            result["telemetry_id"] = telemetry_id
+            result["telemetry_id"] = request_context["request_id"] 
             return result
             
         # 2b) Kontrola, zda text není příliš dlouhý
@@ -84,8 +83,7 @@ async def process_fake_news(prompt: str):
                 "status": "error",
                 "message": "Zadaný text je příliš dlouhý pro ověření."
             }
-            telemetry_id = await log_request_end(request_context, False, result)
-            result["telemetry_id"] = telemetry_id
+            result["telemetry_id"] = request_context["request_id"] 
             return result
         
         # 3) Generování vyhledávací fráze a klíčových slov
@@ -106,8 +104,7 @@ async def process_fake_news(prompt: str):
                 "status": "error",
                 "message": "Zadaný text není validní pro ověření."
             }
-            telemetry_id = await log_request_end(request_context, False, result)
-            result["telemetry_id"] = telemetry_id
+            result["telemetry_id"] = request_context["request_id"] 
             return result
             
         # 4) Vyhledávání pomocí Google API
@@ -126,8 +123,7 @@ async def process_fake_news(prompt: str):
                 "status": "error",
                 "message": "Nenašli jsme žádné výsledky pro zadaný dotaz."
             }
-            telemetry_id = await log_request_end(request_context, False, result)
-            result["telemetry_id"] = telemetry_id
+            result["telemetry_id"] = request_context["request_id"] 
             return result
             
         '''# 5) Filtrování relevantních článků podle klíčových slov
@@ -176,8 +172,7 @@ async def process_fake_news(prompt: str):
                 "message": "Nepodařilo se získat obsah článků pro ověření.",
                 "filtered_articles": filtered_articles
             }
-            telemetry_id = await log_request_end(request_context, False, result)
-            result["telemetry_id"] = telemetry_id
+            result["telemetry_id"] = request_context["request_id"] 
             return result
         
         # 7) Připrav obsah článků pro vyhodnocení tvrzení
@@ -198,7 +193,7 @@ async def process_fake_news(prompt: str):
                 "filtered_articles": scraped_articles
             }
             telemetry_id = await log_request_end(request_context, True, result)
-            result["telemetry_id"] = telemetry_id
+            result["telemetry_id"] = request_context["request_id"] 
             return result
         
         # Chyba při vyhodnocování tvrzení
@@ -208,7 +203,7 @@ async def process_fake_news(prompt: str):
             "filtered_articles": scraped_articles
         }
         telemetry_id = await log_request_end(request_context, False, result)
-        result["telemetry_id"] = telemetry_id
+        result["telemetry_id"] = request_context["request_id"] 
         return result
 
     except Exception as e:
@@ -219,5 +214,5 @@ async def process_fake_news(prompt: str):
             "message": f"Neočekávaná chyba: {str(e)}"
         }
         telemetry_id = await log_request_end(request_context, False, result)
-        result["telemetry_id"] = telemetry_id
+        result["telemetry_id"] = request_context["request_id"] 
         return result
