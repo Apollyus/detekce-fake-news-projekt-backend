@@ -2,16 +2,15 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from source.modules.database import get_db
-from source.modules.models import RegistrationKey
+from source.modules.models import RegistrationKey, User # Přidán import User
 from source.modules.config import config
 from source.modules.utils import generate_registration_key
-from source.modules.admin_auth import generate_admin_token, admin_required
-from typing import Dict, List, Any
+from source.modules.auth import get_current_admin_user # Použití nové auth funkce
+from typing import Dict, List, Any, Optional # Přidán Optional
 from source.modules.telemetry_module import get_metrics
-from sqlalchemy import func, desc
+from sqlalchemy import func, desc, update # Přidán update
 from datetime import datetime, timedelta
 from source.modules.models import RateLimitStats
-from typing import Dict, List, Optional
 
 # Vytvoření routeru pro administrativní endpointy
 router = APIRouter()
@@ -21,7 +20,8 @@ ADMIN_PASSWORD = config.ADMIN_PASSWORD
 @router.post("/generate-keys")
 async def generate_keys(
     count: int = Query(1, ge=1, le=100),
-    _: bool = Depends(admin_required),
+    # Použití nové dependency pro admin ověření
+    current_admin: dict = Depends(get_current_admin_user), 
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -40,7 +40,8 @@ async def generate_keys(
 
 @router.get("/list-keys")
 async def list_keys(
-    _: bool = Depends(admin_required),
+    # Použití nové dependency pro admin ověření
+    current_admin: dict = Depends(get_current_admin_user), 
     db: AsyncSession = Depends(get_db)):
     """
     Zobrazí seznam všech registračních klíčů z databáze.
@@ -50,19 +51,7 @@ async def list_keys(
     keys = result.scalars().all()  # Získání seznamu klíčů
     return {"keys": [key.key for key in keys]}
 
-@router.post("/admin-login", response_model=Dict[str, Any])
-async def admin_login(admin_password: str):
-    """
-    Generuje bezpečný admin token po zadání správného admin hesla.
-    Tento token lze použít pro následné administrativní operace.
-    """
-    if admin_password != ADMIN_PASSWORD:
-        raise HTTPException(status_code=401, detail="Neplatné admin heslo")
-    
-    token, expires_in = generate_admin_token(admin_password)
-    return {"token": token, "expires_in": expires_in}
-
-@router.get("/telemetry", dependencies=[Depends(admin_required)])
+@router.get("/telemetry", dependencies=[Depends(get_current_admin_user)]) # Použití nové dependency
 async def get_telemetry_data():
     """
     Získá telemetrická data pro službu detekce fake news (pouze pro adminy).
@@ -70,7 +59,7 @@ async def get_telemetry_data():
     """
     return await get_metrics()  # Zajištění asynchronního volání telemetrie
 
-@router.get("/rate-limit-stats", dependencies=[Depends(admin_required)])
+@router.get("/rate-limit-stats", dependencies=[Depends(get_current_admin_user)]) # Použití nové dependency
 async def get_rate_limit_statistics(
     days: int = Query(7, ge=1, le=30, description="Počet dní historie"),
     db: AsyncSession = Depends(get_db)
@@ -182,3 +171,43 @@ async def get_rate_limit_statistics(
     result["summary"]["total_all_limits"] = all_total
     
     return result
+
+@router.put("/users/role", dependencies=[Depends(get_current_admin_user)]) # Změna cesty a odstranění user_id z cesty
+async def update_user_role_by_email( # Přejmenování funkce a parametru
+    email: str = Query(..., description="Email uživatele, jehož role se má změnit"), # Přidán Query parametr email
+    role: str = Query(..., description="Nová role uživatele (user nebo admin)"),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Aktualizuje roli zadaného uživatele podle emailu.
+    Vyžaduje admin autentizaci.
+    """
+    if role not in ["user", "admin"]:
+        raise HTTPException(status_code=400, detail="Neplatná role. Povolené hodnoty jsou 'user' nebo 'admin'.")
+
+    # Získání uživatele podle emailu
+    user_result = await db.execute(select(User).filter(User.email == email)) # Vyhledání podle emailu
+    user = user_result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(status_code=404, detail=f"Uživatel s emailem '{email}' nebyl nalezen.")
+
+    # Aktualizace role
+    await db.execute(update(User).where(User.email == email).values(role=role)) # Aktualizace podle emailu
+    await db.commit()
+
+    return {"message": f"Role uživatele {user.email} byla aktualizována na {role}."}
+
+@router.get("/users", dependencies=[Depends(get_current_admin_user)])
+async def list_users(
+    skip: int = 0,
+    limit: int = 100,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Získá seznam všech uživatelů.
+    Vyžaduje admin autentizaci.
+    """
+    users_result = await db.execute(select(User).offset(skip).limit(limit))
+    users = users_result.scalars().all()
+    return users

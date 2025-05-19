@@ -78,9 +78,13 @@ async def get_me(current_user: dict = Depends(get_current_user)):
     Args:
         current_user (dict): data ověřeného uživatele získané z tokenu
     Returns:
-        dict: obsahuje user_id
+        dict: obsahuje user_id, email a roli
     """
-    return {"user_id": current_user["user_id"]}
+    return {
+        "user_id": current_user.get("user_id"),
+        "email": current_user.get("email"),
+        "role": current_user.get("role")
+    }
 
 @router.post("/complete-google-registration")
 async def complete_registration(request_data: CompleteRegistrationRequest, db: AsyncSession = Depends(get_db)):

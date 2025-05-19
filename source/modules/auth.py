@@ -15,6 +15,8 @@ if not SECRET_KEY:
     raise ValueError("SECRET_KEY musí být nastaven v souboru .env")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
+USER_ROLE = "user"
+ADMIN_ROLE = "admin"
 
 # ---- Inicializace ----
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -35,10 +37,13 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     to_encode = data.copy()
     expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
     to_encode.update({"exp": expire})
+    # Role se přidává do tokenu při jeho vytváření
+    if "role" not in to_encode: # Přidá výchozí roli, pokud není specifikována
+        to_encode["role"] = USER_ROLE
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 # ---- Ověření tokenu & získání uživatele ----
-async def get_current_user(request: Request, db: AsyncSession = Depends(get_db)):
+async def get_current_user(request: Request, db: AsyncSession = Depends(get_db)) -> dict: # Změna návratového typu
     """Získá aktuálního uživatele z požadavku pomocí JWT tokenu"""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -58,6 +63,9 @@ async def get_current_user(request: Request, db: AsyncSession = Depends(get_db))
             
         # Zjištění, zda sub je ID nebo email
         user = None
+        # Role se extrahuje z tokenu
+        role = payload.get("role", USER_ROLE) # Výchozí role USER_ROLE
+
         if user_sub.isdigit():
             # Pokud je číselné, považujeme za ID
             result = await db.execute(select(User).filter(User.id == int(user_sub)))
@@ -70,6 +78,22 @@ async def get_current_user(request: Request, db: AsyncSession = Depends(get_db))
         if user is None:
             raise credentials_exception
             
-        return {"user_id": user.id}
+        # Vrátí slovník s ID uživatele, emailem a jeho aktuální rolí z databáze
+        return {"user_id": user.id, "email": user.email, "role": user.role} 
     except JWTError:
         raise credentials_exception
+
+async def get_current_active_user(current_user: dict = Depends(get_current_user)) -> dict:
+    """Získá aktuálního aktivního uživatele a ověří jeho roli."""
+    # Tato funkce může být rozšířena o další logiku, např. kontrolu, zda je uživatel aktivní
+    # Prozatím pouze vrací data získaná z get_current_user
+    return current_user
+
+async def get_current_admin_user(current_user: dict = Depends(get_current_user)) -> dict:
+    """Získá aktuálního uživatele a ověří, zda má roli administrátora."""
+    if current_user.get("role") != ADMIN_ROLE:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Nedostatečná oprávnění. Vyžadována role administrátora."
+        )
+    return current_user

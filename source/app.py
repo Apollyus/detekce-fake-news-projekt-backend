@@ -97,8 +97,12 @@ from source.routes.token_routes import router as token_router
 from source.routes.auth_routes import router as auth_router
 from source.routes.form_routes import router as form_router
 from source.routes.feedback_routes import router as feedback_router
-from source.modules.database import engine, Base
+from source.modules.database import engine, Base, AsyncSessionLocal as SessionLocal 
 from source.modules.config import config
+# Importy pro vytvoření admina při startu
+from sqlalchemy.future import select # <--- PŘIDÁNO
+from source.modules.models import User 
+from source.modules.auth import hash_password
 
 description = """
     # Fake News Detection API 🕵️‍♂️
@@ -199,6 +203,26 @@ async def on_startup():
     # create missing tables
     async with engine.begin() as conn:
         await conn.run_sync(lambda sync_conn: Base.metadata.create_all(sync_conn, checkfirst=True))
+
+    async with SessionLocal() as db:
+        admin_email = "admin@admin.admin"
+        admin_password = "Pixma120+"
+
+        result = await db.execute(select(User).filter(User.email == admin_email))
+        existing_admin = result.scalar_one_or_none()
+
+        if not existing_admin:
+            hashed_admin_password = hash_password(admin_password)
+            admin_user = User(
+                email=admin_email,
+                hashed_password=hashed_admin_password,
+                role="admin"
+            )
+            db.add(admin_user)
+            await db.commit()
+            print(f"✅ Admin user '{admin_email}' created successfully during app startup.")
+        else:
+            print(f"ℹ️ Admin user '{admin_email}' already exists (checked at app startup).")
 
 # Middleware setup
 app.add_middleware(

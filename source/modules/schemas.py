@@ -14,6 +14,7 @@ class UserOut(BaseModel):
     """Schéma pro výstup informací o uživateli (bez citlivých údajů)"""
     id: int  # ID uživatele
     email: EmailStr  # Email uživatele
+    role: str # Přidáno: Role uživatele
 
     class Config:
         """Konfigurace pro automatické mapování z ORM objektů"""

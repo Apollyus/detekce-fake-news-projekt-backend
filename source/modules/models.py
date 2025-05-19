@@ -11,6 +11,7 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True) # Primární klíč
     email = Column(String, unique=True, index=True, nullable=False) # Email uživatele (unikátní)
     hashed_password = Column(String, nullable=False) # Hashované heslo
+    role = Column(String, default="user", nullable=False)  # Přidáno: Role uživatele (user, admin)
     #created_at = Column(DateTime, default=datetime.utcnow) # Časové razítko vytvoření
     #updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow) # Časové razítko aktualizace
 

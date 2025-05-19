@@ -4,8 +4,7 @@ from sqlalchemy.future import select
 from source.modules.database import get_db
 from source.modules.models import UserFeedback, TelemetryRecord
 from source.modules.schemas import UserFeedbackCreate, UserFeedbackOut, UserFeedbackWithPromptOut
-from source.modules.auth import get_current_user
-from source.modules.admin_auth import generate_admin_token, admin_required
+from source.modules.auth import get_current_active_user, get_current_admin_user 
 from typing import List
 from sqlalchemy.orm import joinedload
 
@@ -14,7 +13,7 @@ router = APIRouter()
 @router.post("", response_model=UserFeedbackOut)  # Changed "/" to ""
 async def create_feedback(
     feedback: UserFeedbackCreate,
-    #current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_current_active_user), # Vyžaduje jakéhokoliv přihlášeného uživatele
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -67,7 +66,7 @@ async def create_feedback(
 @router.get("/feedback/latest", response_model=List[UserFeedbackWithPromptOut])
 async def get_latest_feedback(
     limit: int = Query(10, ge=1, le=100),
-    _: bool = Depends(admin_required),
+    current_admin: dict = Depends(get_current_admin_user), # Vyžaduje admina
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -102,16 +101,16 @@ async def get_latest_feedback(
 
 @router.get("/feedback/{telemetry_id}", response_model=UserFeedbackWithPromptOut)
 async def get_feedback(
-    telemetry_id: int,  # Stále používáme číselné ID pro interní API
-    _: bool = Depends(admin_required),
+    telemetry_id: str,  # Změna na str, aby odpovídalo UserFeedbackCreate a modelu
+    current_admin: dict = Depends(get_current_admin_user), # Vyžaduje admina
     db: AsyncSession = Depends(get_db)
 ):
     """
     Získá zpětnou vazbu pro konkrétní záznam telemetrie včetně promptu.
     
     Args:
-        telemetry_id (int): ID záznamu telemetrie
-        _ (bool): Admin autentizace
+        telemetry_id (str): ID záznamu telemetrie (request_id)
+        current_admin (dict): Data admina
         db (AsyncSession): Databázová session
     
     Returns:

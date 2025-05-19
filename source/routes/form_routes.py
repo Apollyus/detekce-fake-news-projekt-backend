@@ -7,7 +7,7 @@ from typing import List, Dict, Any
 from source.modules.database import get_db
 from source.modules.schemas import FormSubmission as FormSubmissionSchema
 from source.modules.models import FormSubmission as FormSubmissionModel
-from source.modules.admin_auth import admin_required
+from source.modules.auth import get_current_admin_user
 
 # Router pro obsluhu formulářových endpointů
 router = APIRouter()
@@ -69,37 +69,27 @@ async def submit_form(
             detail=f"Error: {str(e)}"
         )
     
-@router.get("/submissions", response_model=List[Dict[str, Any]])
+@router.get("/submissions", response_model=List[FormSubmissionSchema]) # Změna response_model na FormSubmissionSchema
 async def get_form_submissions(
     limit: int = None,
-    _: bool = Depends(admin_required),  # Použití admin závislosti pro ověření
+    current_admin: dict = Depends(get_current_admin_user),  # Použití nové admin závislosti
     db: AsyncSession = Depends(get_db)   # Použití AsyncSession pro připojení k databázi
 ):
     """
     Získání seznamu odeslaných formulářů s volitelným omezením počtu nejnovějších záznamů.
-    Tento endpoint vyžaduje admin autentizaci pomocí tokenu.
+    Tento endpoint vyžaduje admin autentizaci.
     
     Parametry:
     - limit: Volitelný. Počet nejnovějších záznamů k vrácení
-    - X-Admin-Token: Povinná hlavička s admin tokenem z /admin-login
     
     Vrací seznam odeslaných formulářů s jejich kompletním obsahem.
     """
     # Dotaz s volitelným omezením počtu nejnovějších záznamů
-    query = await db.execute(select(FormSubmissionModel).order_by(FormSubmissionModel.created_at.desc()))
+    query = select(FormSubmissionModel).order_by(FormSubmissionModel.created_at.desc())
+    if limit:
+        query = query.limit(limit)
     
-    submissions = query.scalars().all()  # Asynchronní načtení všech výsledků
+    result = await db.execute(query)
+    submissions = result.scalars().all()  # Asynchronní načtení všech výsledků
     
-    # Převod na formát slovníku pro odpověď
-    result = []
-    for submission in submissions:
-        result.append({
-            "id": submission.id,
-            "full_name": submission.full_name,
-            "email": submission.email,
-            "subject": submission.subject,
-            "message": submission.message,
-            "created_at": submission.created_at
-        })
-    
-    return result
+    return submissions # Přímo vracíme list objektů, Pydantic se postará o konverzi

@@ -8,6 +8,8 @@ from source.modules.database import get_db
 from source.modules.models import User
 from source.modules.config import config
 from authlib.integrations.starlette_client import OAuth
+# Import pro nové dependency funkce
+from source.modules.auth import get_current_active_user, get_current_admin_user 
 
 def get_frontend_url():
     """Vrátí příslušnou URL frontendu podle prostředí"""
@@ -54,18 +56,22 @@ async def auth(request: Request, db: AsyncSession = Depends(get_db)):
         result = await db.execute(select(User).filter(User.email == user_data['email']))
         db_user = result.scalar_one_or_none()
         
+        user_role = "user" # Výchozí role pro nové OAuth uživatele
         if not db_user:
             # Vytvoření uživatele s prázdným heslem - indikuje OAuth uživatele bez nastaveného hesla
             db_user = User(
                 email=user_data['email'],
-                hashed_password=""  # Prázdné heslo indikuje OAuth uživatele, který musí dokončit registraci
+                hashed_password="",  # Prázdné heslo indikuje OAuth uživatele, který musí dokončit registraci
+                role=user_role # Přiřazení role
             )
             db.add(db_user)
             await db.commit()
             await db.refresh(db_user)
+        else:
+            user_role = db_user.role # Pokud uživatel existuje, použijeme jeho stávající roli
         
-        # Vytvoření JWT tokenu
-        access_token = create_access_token(data={"sub": user_data['email']})
+        # Vytvoření JWT tokenu s rolí
+        access_token = create_access_token(data={"sub": user_data['email'], "role": user_role})
 
         # Získání URL frontendu z konfigurace
         frontend_url = get_frontend_url()
