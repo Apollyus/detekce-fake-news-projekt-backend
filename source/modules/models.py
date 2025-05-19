@@ -66,7 +66,7 @@ class UserFeedback(Base):
     __tablename__ = "user_feedback"
 
     id = Column(Integer, primary_key=True, index=True)
-    telemetry_record_id = Column(Integer, ForeignKey("telemetry_records.id"), nullable=False)
+    telemetry_record_id = Column(String, ForeignKey("telemetry_records.request_id"), nullable=False)  # Opraveno na request_id
     rating = Column(Integer, nullable=False)  # Hodnocení 1-5
     comment = Column(String, nullable=True)  # Volitelný komentář
     is_correct = Column(Boolean, nullable=False)  # Zda byla analýza správná

@@ -4,6 +4,10 @@ from source.modules.filtrace_clanku_module import filter_relevant_articles
 from source.modules.finalni_rozhodnuti_module import evaluate_claim
 from source.modules.telemetry_module import log_request_start, log_step_time, log_request_end, log_error, log_processing_data
 from source.modules.scraping_module import scrape_article, detect_portal
+import logging # Add this import
+
+# Initialize logger for this module
+logger = logging.getLogger(__name__) # Add this line
 
 """
 Servisní modul pro detekci fake news.
@@ -75,6 +79,8 @@ async def process_fake_news(prompt: str):
                 "message": "Zadaný text je příliš krátký pro ověření."
             }
             result["telemetry_id"] = request_context["request_id"] 
+            logger.info(f"Calling log_request_end (prompt too short) for request_id: {request_context['request_id']}")
+            await log_request_end(request_context, False, result) # Added call
             return result
             
         # 2b) Kontrola, zda text není příliš dlouhý
@@ -84,6 +90,8 @@ async def process_fake_news(prompt: str):
                 "message": "Zadaný text je příliš dlouhý pro ověření."
             }
             result["telemetry_id"] = request_context["request_id"] 
+            logger.info(f"Calling log_request_end (prompt too long) for request_id: {request_context['request_id']}")
+            await log_request_end(request_context, False, result) # Added call
             return result
         
         # 3) Generování vyhledávací fráze a klíčových slov
@@ -105,6 +113,8 @@ async def process_fake_news(prompt: str):
                 "message": "Zadaný text není validní pro ověření."
             }
             result["telemetry_id"] = request_context["request_id"] 
+            logger.info(f"Calling log_request_end (prompt not valid) for request_id: {request_context['request_id']}")
+            await log_request_end(request_context, False, result) # Added call
             return result
             
         # 4) Vyhledávání pomocí Google API
@@ -124,6 +134,8 @@ async def process_fake_news(prompt: str):
                 "message": "Nenašli jsme žádné výsledky pro zadaný dotaz."
             }
             result["telemetry_id"] = request_context["request_id"] 
+            logger.info(f"Calling log_request_end (no google results) for request_id: {request_context['request_id']}")
+            await log_request_end(request_context, False, result) # Added call
             return result
             
         '''# 5) Filtrování relevantních článků podle klíčových slov
@@ -173,6 +185,8 @@ async def process_fake_news(prompt: str):
                 "filtered_articles": filtered_articles
             }
             result["telemetry_id"] = request_context["request_id"] 
+            logger.info(f"Calling log_request_end (no scraped articles) for request_id: {request_context['request_id']}")
+            await log_request_end(request_context, False, result) # Added call
             return result
         
         # 7) Připrav obsah článků pro vyhodnocení tvrzení
@@ -192,6 +206,7 @@ async def process_fake_news(prompt: str):
                 "result": rozhodnuti,
                 "filtered_articles": scraped_articles
             }
+            logger.info(f"Calling log_request_end from 'if rozhodnuti:' block for request_id: {request_context['request_id']}")
             telemetry_id = await log_request_end(request_context, True, result)
             result["telemetry_id"] = request_context["request_id"] 
             return result
@@ -202,17 +217,28 @@ async def process_fake_news(prompt: str):
             "message": "Chyba při ověřování tvrzení.",
             "filtered_articles": scraped_articles
         }
+        logger.info(f"Calling log_request_end from 'else (rozhodnuti failed):' block for request_id: {request_context['request_id']}")
         telemetry_id = await log_request_end(request_context, False, result)
         result["telemetry_id"] = request_context["request_id"] 
         return result
 
     except Exception as e:
         # 9) Záznam neočekávaných chyb
-        await log_error(request_context, e)
+        logger.error(f"Exception in process_fake_news for request_id {request_context.get('request_id', 'UNKNOWN')}: {str(e)}", exc_info=True)
+        await log_error(request_context, e) # log_error should be called before log_request_end in case of exception
         result = {
             "status": "error",
             "message": f"Neočekávaná chyba: {str(e)}"
         }
-        telemetry_id = await log_request_end(request_context, False, result)
-        result["telemetry_id"] = request_context["request_id"] 
+        logger.info(f"Calling log_request_end from 'except Exception:' block for request_id: {request_context.get('request_id', 'UNKNOWN')}")
+        # Ensure request_context is passed, even if it's partially formed.
+        # If request_context itself is the problem, log_request_start might have failed.
+        if "request_id" in request_context: # Check if request_id exists
+            telemetry_id = await log_request_end(request_context, False, result)
+            result["telemetry_id"] = request_context["request_id"] 
+        else:
+            # If request_id is not in request_context, we can't properly log telemetry_record.
+            # This case should ideally not happen if log_request_start succeeded.
+            logger.error("request_id missing in request_context during exception handling. Cannot call log_request_end.")
+            # result already contains error message. We might not be able to add telemetry_id.
         return result

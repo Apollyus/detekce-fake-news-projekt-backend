@@ -104,7 +104,9 @@ async def log_request_start(prompt: str) -> Dict[str, Any]:
     """Zaprotokoluje začátek požadavku a vrátí metadata požadavku
     
     Vytváří jedinečné ID požadavku, zaznamená čas začátku a 
-    aktualizuje celkové statistiky požadavků v databázi.
+    pokusí se aktualizovat celkové statistiky požadavků v databázi.
+    Pokud aktualizace metrik selže, zaloguje chybu, ale pokračuje dál,
+    protože hlavní je zaznamenat samotný požadavek později.
     """
     request_id = str(uuid.uuid4())
     start_time = time.time()
@@ -112,35 +114,39 @@ async def log_request_start(prompt: str) -> Dict[str, Any]:
     truncated_prompt = prompt[:100] + "..." if len(prompt) > 100 else prompt
     logger.info(f"Request {request_id} started: prompt_length={len(prompt)}, prompt=\"{truncated_prompt}\"")
 
-    # --- Aktualizace agregovaných metrik ---
+    # --- Pokus o aktualizaci agregovaných metrik ---
     try:
         async with AsyncSessionLocal() as db:
+            logger.info(f"Attempting to update start metrics in database for request_id: {request_id}")
             # Zajištění existence hlavního záznamu metrik
             result = await db.execute(select(models.Metrics).filter(models.Metrics.id == 1))
             metrics_record = result.scalar_one_or_none()
             
             if not metrics_record:
-                metrics_record = models.Metrics(id=1)
+                metrics_record = models.Metrics(id=1, total_requests=0, successful_requests=0, failed_requests=0, average_processing_time=0.0)
                 db.add(metrics_record)
-                await db.flush()
+                await db.flush() # Ensure it has an ID if new
 
             # Přičtení k celkovému počtu požadavků
-            metrics_record.total_requests += 1
+            metrics_record.total_requests = (metrics_record.total_requests or 0) + 1
 
             # Aktualizace hodinových metrik
             hour_str = datetime.now().strftime("%Y-%m-%d-%H")
-            result = await db.execute(select(models.HourlyMetrics).filter(models.HourlyMetrics.hour == hour_str))
-            hourly_record = result.scalar_one_or_none()
+            result_hourly = await db.execute(select(models.HourlyMetrics).filter(models.HourlyMetrics.hour == hour_str))
+            hourly_record = result_hourly.scalar_one_or_none()
             
             if hourly_record:
-                hourly_record.request_count += 1
+                hourly_record.request_count = (hourly_record.request_count or 0) + 1
             else:
                 db.add(models.HourlyMetrics(hour=hour_str, request_count=1))
 
             await db.commit()
+            logger.info(f"Successfully updated start metrics in database for request_id: {request_id}")
     except Exception as e:
-        logger.error(f"Failed to update start metrics in database: {e}")
-        await db.rollback()
+        logger.error(f"Failed to update start metrics in database for request_id {request_id}: {e}", exc_info=True)
+        # Nezvedáme výjimku dál, hlavní je vrátit request_context
+        # Pokud zde dojde k rollbacku, je to v rámci této session, nemělo by ovlivnit další operace
+        # await db.rollback() # Implicitly handled by session context manager on error if commit fails
     # --- Konec aktualizace agregovaných metrik ---
 
     return {
@@ -175,19 +181,20 @@ def log_processing_data(request_context: Dict[str, Any], data_type: str, data: A
     """
     request_context["processing_data"][data_type] = data
 
-async def log_request_end(request_context: Dict[str, Any], success: bool, result_data: Dict[str, Any]) -> int:
+async def log_request_end(request_context: Dict[str, Any], success: bool, result_data: Dict[str, Any]) -> Optional[int]:
     """Zaprotokoluje ukončení požadavku s výsledky
     
     Vypočítá celkovou dobu trvání požadavku, aktualizuje statistiky úspěšnosti/selhání
     a ukládá záznam do databáze včetně průběžných dat.
+    Prioritizuje uložení hlavního TelemetryRecord.
     
     Returns:
-        int: ID vytvořeného záznamu telemetrie
+        Optional[int]: ID vytvořeného záznamu telemetrie, nebo None pokud selhalo uložení hlavního záznamu.
     """
+    logger.info(f"Entering log_request_end for request_id: {request_context['request_id']}, success: {success}") # Added this log
     end_time = time.time()
     total_duration = end_time - request_context["start_time"]
 
-    # Příprava dat pro model TelemetryRecord
     request_record_data = {
         "request_id": request_context["request_id"],
         "timestamp": datetime.now(),
@@ -201,60 +208,88 @@ async def log_request_end(request_context: Dict[str, Any], success: bool, result
         "error_message": None if success else result_data.get("message")
     }
 
+    record_id: Optional[int] = None
+
+    # Phase 1: Save the main TelemetryRecord
     try:
         async with AsyncSessionLocal() as db:
-            # Vložení záznamu TelemetryRecord
+            logger.info(f"Attempting to save TelemetryRecord for request_id: {request_context['request_id']}")
             db_record = models.TelemetryRecord(**request_record_data)
             db.add(db_record)
-            await db.flush()  # Získáme ID před commit
-            record_id = db_record.id
-
-            # --- Aktualizace agregovaných metrik ---
-            db_result = await db.execute(select(models.Metrics).filter(models.Metrics.id == 1))
-            metrics_record = db_result.scalar_one_or_none()
-            
-            if not metrics_record:
-                metrics_record = models.Metrics(id=1)
-                db.add(metrics_record)
-                await db.flush()
-
-            # Aktualizace počtu úspěšných/neúspěšných požadavků
-            if success:
-                metrics_record.successful_requests += 1
-            else:
-                metrics_record.failed_requests += 1
-
-            # Aktualizace průměrné doby zpracování (jednoduchý klouzavý průměr)
-            total_req = metrics_record.total_requests
-            if total_req > 0:
-                if metrics_record.average_processing_time == 0.0 and total_req == 1:
-                    metrics_record.average_processing_time = total_duration
-                else:
-                    # Vážený průměr: (starý_průměr * (n-1) + nová_hodnota) / n
-                    metrics_record.average_processing_time = ((metrics_record.average_processing_time * (total_req - 1)) + total_duration) / total_req
-
-            if not success:
-                # Sledování typů chyb v tabulce ErrorMetrics
-                error_message = result_data.get("message", "Unknown error")
-                # Omezení délky chybové zprávy v případě potřeby
-                error_message = error_message[:255] if error_message else "Unknown error"
-
-                db_result = await db.execute(select(models.ErrorMetrics).filter(models.ErrorMetrics.error_message == error_message))
-                error_record = db_result.scalar_one_or_none()
-                
-                if error_record:
-                    error_record.count += 1
-                else:
-                    db.add(models.ErrorMetrics(error_message=error_message, count=1))
-            # --- Konec aktualizace agregovaných metrik ---
-
             await db.commit()
-            return record_id
-
+            await db.refresh(db_record) # Ensure we get the ID
+            record_id = db_record.id
+            logger.info(f"Successfully saved TelemetryRecord with id: {record_id} for request_id: {request_context['request_id']}")
     except Exception as e:
-        logger.error(f"Failed to log request end to database: {e}")
-        await db.rollback()
-        raise e
+        logger.error(f"CRITICAL: Failed to save main TelemetryRecord for request_id {request_context['request_id']}: {e}", exc_info=True)
+        # If the main record fails to save, we log and return None or re-raise.
+        # For now, let's allow the function to complete and log to file, but indicate failure to save.
+        # The caller (fake_news_service) might need to handle this.
+        # Consider re-raising 'e' if this failure is absolutely critical to halt further processing.
+
+    # Phase 2: Update aggregate metrics (only if main record was successfully saved and we have an ID)
+    if record_id is not None:
+        try:
+            async with AsyncSessionLocal() as db: # New session for aggregate metrics
+                logger.info(f"Attempting to update aggregate metrics for TelemetryRecord id: {record_id}")
+                
+                # --- Aktualizace agregovaných metrik ---
+                db_result = await db.execute(select(models.Metrics).filter(models.Metrics.id == 1))
+                metrics_record = db_result.scalar_one_or_none()
+                
+                if not metrics_record:
+                    metrics_record = models.Metrics(id=1)
+                    db.add(metrics_record)
+                    # If metrics_record was just created, its total_requests might be 0.
+                    # The log_request_start should have incremented total_requests already.
+                    # We need to ensure consistency or rely on log_request_start for total_requests increment.
+                    # For now, let's assume log_request_start handles its part.
+                    await db.flush() # Ensure it exists before further updates if newly added
+
+                # Aktualizace počtu úspěšných/neúspěšných požadavků
+                if success:
+                    metrics_record.successful_requests = (metrics_record.successful_requests or 0) + 1
+                else:
+                    metrics_record.failed_requests = (metrics_record.failed_requests or 0) + 1
+
+                # Aktualizace průměrné doby zpracování
+                # total_req is based on the state from log_request_start.
+                # This logic might need re-evaluation if log_request_start fails or if this runs before log_request_start commits.
+                # However, log_request_start uses its own session and should commit before log_request_end is called.
+                total_req_from_metrics = metrics_record.total_requests or 0 # Get current total_requests
+                
+                if total_req_from_metrics > 0:
+                    current_avg_time = metrics_record.average_processing_time or 0.0
+                    if current_avg_time == 0.0 and total_req_from_metrics == 1: # First request contributing to average
+                        metrics_record.average_processing_time = total_duration
+                    else:
+                        # Ensure total_req_from_metrics is at least 1 to avoid division by zero if it was 0 and became 1.
+                        # This calculation assumes total_req_from_metrics reflects count *before* this request for avg calc, then add this one.
+                        # More robust: (current_sum_of_durations + new_duration) / new_total_requests
+                        # Simpler: ((old_avg * (N-1)) + new_value) / N
+                        # N here is total_req_from_metrics (which should include the current request from log_request_start)
+                        metrics_record.average_processing_time = ((current_avg_time * (total_req_from_metrics - 1)) + total_duration) / total_req_from_metrics \
+                                                                    if total_req_from_metrics > 1 else total_duration
+
+
+                if not success:
+                    error_message_str = result_data.get("message", "Unknown error")
+                    error_message_str = error_message_str[:255] if error_message_str else "Unknown error"
+
+                    db_error_result = await db.execute(select(models.ErrorMetrics).filter(models.ErrorMetrics.error_message == error_message_str))
+                    error_record = db_error_result.scalar_one_or_none()
+                    
+                    if error_record:
+                        error_record.count += 1
+                    else:
+                        db.add(models.ErrorMetrics(error_message=error_message_str, count=1))
+                # --- Konec aktualizace agregovaných metrik ---
+
+                await db.commit()
+                logger.info(f"Successfully updated aggregate metrics for TelemetryRecord id: {record_id}")
+        except Exception as e:
+            logger.error(f"Failed to update aggregate metrics for TelemetryRecord id {record_id}: {e}", exc_info=True)
+            # Do not re-raise; main record is saved. This error means aggregate data might be less consistent.
 
     # Protokolování do souboru
     log_message = f"Request {request_context['request_id']} completed: success={success}, duration={total_duration:.2f}s"

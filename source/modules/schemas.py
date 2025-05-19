@@ -88,7 +88,7 @@ class UserFeedbackCreate(BaseModel):
 class UserFeedbackOut(BaseModel):
     """Schéma pro výstup zpětné vazby"""
     id: int
-    telemetry_record_id: int
+    telemetry_record_id: str  # Changed from int to str
     rating: int
     comment: Optional[str]
     is_correct: bool
@@ -100,8 +100,11 @@ class UserFeedbackOut(BaseModel):
 class UserFeedbackWithPromptOut(BaseModel):
     """Schéma pro výstup zpětné vazby včetně promptu"""
     id: int
-    telemetry_record_id: int  # Interní ID (můžete zachovat pro debugging)
-    telemetry_id: str  # UUID pro veřejné API
+    telemetry_record_id: str  # Changed from int to str, this refers to the FK (request_id)
+    # telemetry_id: str # This field seems redundant if telemetry_record_id is the string UUID.
+                       # Keeping it for now if it serves a specific purpose in client-side distinction.
+                       # If it's meant to be the TelemetryRecord.id (integer PK), then the naming is confusing.
+                       # Assuming telemetry_record_id is the canonical string UUID.
     rating: int
     comment: Optional[str]
     is_correct: bool

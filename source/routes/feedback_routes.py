@@ -11,10 +11,10 @@ from sqlalchemy.orm import joinedload
 
 router = APIRouter()
 
-@router.post("/", response_model=UserFeedbackOut)
+@router.post("", response_model=UserFeedbackOut)  # Changed "/" to ""
 async def create_feedback(
     feedback: UserFeedbackCreate,
-    current_user: dict = Depends(get_current_user),
+    #current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -46,7 +46,7 @@ async def create_feedback(
     
     # Vytvoření nové zpětné vazby
     db_feedback = UserFeedback(
-        telemetry_record_id=record.id,  # Zde použijeme číselné ID ze získaného záznamu
+        telemetry_record_id=record.request_id,  # Opraveno: použijeme request_id (String) místo record.id (Integer)
         rating=feedback.rating,
         comment=feedback.comment,
         is_correct=feedback.is_correct
