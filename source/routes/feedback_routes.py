@@ -63,6 +63,42 @@ async def create_feedback(
             status_code=500,
             detail=f"Chyba při ukládání zpětné vazby: {str(e)}"
         )
+    
+@router.get("/feedback/latest", response_model=List[UserFeedbackWithPromptOut])
+async def get_latest_feedback(
+    limit: int = Query(10, ge=1, le=100),
+    _: bool = Depends(admin_required),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Získá seznam posledních hodnocení včetně promptů.
+    """
+    result = await db.execute(
+        select(UserFeedback)
+        .options(joinedload(UserFeedback.telemetry_record))
+        .order_by(UserFeedback.created_at.desc())
+        .limit(limit)
+    )
+    feedbacks = result.scalars().all()
+    
+    if not feedbacks:
+        return []
+    
+    # Vytvoříme odpovědi s údaji z obou tabulek
+    responses = []
+    for feedback in feedbacks:
+        responses.append({
+            "id": feedback.id,
+            "telemetry_record_id": feedback.telemetry_record_id,
+            "rating": feedback.rating,
+            "comment": feedback.comment,
+            "is_correct": feedback.is_correct,
+            "created_at": feedback.created_at,
+            "prompt": feedback.telemetry_record.prompt,
+            "request_id": feedback.telemetry_record.request_id
+        })
+    
+    return responses
 
 @router.get("/feedback/{telemetry_id}", response_model=UserFeedbackWithPromptOut)
 async def get_feedback(
@@ -108,39 +144,3 @@ async def get_feedback(
     }
     
     return response
-
-@router.get("/feedback/latest", response_model=List[UserFeedbackWithPromptOut])
-async def get_latest_feedback(
-    limit: int = Query(10, ge=1, le=100),
-    _: bool = Depends(admin_required),
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    Získá seznam posledních hodnocení včetně promptů.
-    """
-    result = await db.execute(
-        select(UserFeedback)
-        .options(joinedload(UserFeedback.telemetry_record))
-        .order_by(UserFeedback.created_at.desc())
-        .limit(limit)
-    )
-    feedbacks = result.scalars().all()
-    
-    if not feedbacks:
-        return []
-    
-    # Vytvoříme odpovědi s údaji z obou tabulek
-    responses = []
-    for feedback in feedbacks:
-        responses.append({
-            "id": feedback.id,
-            "telemetry_record_id": feedback.telemetry_record_id,
-            "rating": feedback.rating,
-            "comment": feedback.comment,
-            "is_correct": feedback.is_correct,
-            "created_at": feedback.created_at,
-            "prompt": feedback.telemetry_record.prompt,
-            "request_id": feedback.telemetry_record.request_id
-        })
-    
-    return responses
