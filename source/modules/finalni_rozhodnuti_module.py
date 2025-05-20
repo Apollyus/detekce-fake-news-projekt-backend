@@ -20,7 +20,7 @@ def evaluate_claim(prompt, found_claims):
     claims_text = "\n".join([f"- {claim}" for claim in found_claims])
     
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-4.1-nano-2025-04-14",
         messages=[
     {
         "role": "system",
