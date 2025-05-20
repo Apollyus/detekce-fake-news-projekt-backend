@@ -1,0 +1,53 @@
+name: Docker Image CI
+
+on:
+  push:
+    branches: [ "main" ] # Trigger the workflow on pushes to the main branch
+  # You can also add other triggers, like pull requests or manual triggers:
+  # pull_request:
+  #   branches: [ "main" ]
+  # workflow_dispatch: # Allows manual triggering
+
+jobs:
+  build_and_push:
+    runs-on: ubuntu-latest # Use the latest Ubuntu runner
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v3
+      # QEMU is useful for building multi-platform images, though not strictly necessary for a single platform.
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      # Buildx is a Docker CLI plugin for extended build capabilities.
+
+    - name: Login to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+        # IMPORTANT: You need to create these secrets in your GitHub repository settings.
+        # DOCKERHUB_USERNAME: Your Docker Hub username.
+        # DOCKERHUB_TOKEN: A Docker Hub access token (recommended over password).
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: . # Use the current directory as the build context
+        dockerfile: Dockerfile # Path to your Dockerfile
+        push: true # Actually push the image
+        tags: user2106874/fakechecker-api:latest # The image name and tag
+        # You can add more tags, e.g., based on commit SHA or version:
+        # tags: |
+        #   user2106874/fakechecker-api:latest
+        #   user2106874/fakechecker-api:${{ github.sha }}
+        #   user2106874/fakechecker-api:1.0.0
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Logout from Docker Hub
+      if: always() # Ensure logout happens even if previous steps fail
+      run: docker logout
