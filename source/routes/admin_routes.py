@@ -212,6 +212,38 @@ async def list_users(
     users = users_result.scalars().all()
     return users
 
+@router.get("/online-users", dependencies=[Depends(get_current_admin_user)])
+async def get_online_users(
+    minutes: int = Query(15, description="Consider users active within this many minutes"),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get the count of users who are currently online.
+    Users are considered online if they have had activity within the specified time window.
+    Requires admin authentication.
+    """
+    # Calculate the cutoff time for "online" status
+    cutoff_time = datetime.now() - timedelta(minutes=minutes)
+    
+    # Query for users with activity after the cutoff time
+    result = await db.execute(
+        select(func.count(UserActivity.id))
+        .filter(UserActivity.last_activity >= cutoff_time)
+    )
+    
+    online_count = result.scalar_one()
+    
+    # Get the total registered users for context
+    total_result = await db.execute(select(func.count(User.id)))
+    total_users = total_result.scalar_one()
+    
+    return {
+        "online_users": online_count,
+        "total_users": total_users,
+        "active_window_minutes": minutes,
+        "timestamp": datetime.now().isoformat()
+    }
+
 @router.get("/user-statistics", dependencies=[Depends(get_current_admin_user)])
 async def get_user_statistics(
     db: AsyncSession = Depends(get_db)
