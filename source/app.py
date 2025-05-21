@@ -103,6 +103,7 @@ from source.modules.config import config
 from sqlalchemy.future import select # <--- PŘIDÁNO
 from source.modules.models import User 
 from source.modules.auth import hash_password
+from source.middleware.user_activity_middleware import UserActivityMiddleware
 
 description = """
     # Fake News Detection API 🕵️‍♂️
@@ -238,6 +239,9 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+)
+app.add_middleware(
+    UserActivityMiddleware
 )
 
 # Include routers
