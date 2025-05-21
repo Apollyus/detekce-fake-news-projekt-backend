@@ -17,11 +17,6 @@ from .database import AsyncSessionLocal
 from . import models
 
 # Konfigurace logování
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    filename='telemetry.log'
-)
 logger = logging.getLogger('fake_news_telemetry')
 
 # Definice cesty k databázi (pro logování/kontext)

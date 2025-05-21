@@ -87,6 +87,8 @@ from fastapi.responses import FileResponse
 from starlette.middleware.sessions import SessionMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+import logging
+import sys
 from source.middleware.rate_limit_monitor import RateLimitMonitorMiddleware
 from source.routes.fake_news_routes import limiter
 from source.modules.config import config
@@ -99,11 +101,41 @@ from source.routes.form_routes import router as form_router
 from source.routes.feedback_routes import router as feedback_router
 from source.modules.database import engine, Base, AsyncSessionLocal as SessionLocal 
 from source.modules.config import config
-# Importy pro vytvoření admina při startu
-from sqlalchemy.future import select # <--- PŘIDÁNO
+from sqlalchemy.future import select
 from source.modules.models import User 
 from source.modules.auth import hash_password
 from source.middleware.user_activity_middleware import UserActivityMiddleware
+
+logging.basicConfig(
+    stream=sys.stdout,
+    level=logging.INFO, # Default level for console for most loggers
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+root_logger_instance = logging.getLogger() 
+
+# 2. Configure 'user_activity' logger for DEBUG console output
+user_activity_logger = logging.getLogger("user_activity")
+user_activity_logger.setLevel(logging.DEBUG) # Keep this at DEBUG if you want the middleware's INFO/WARNING/ERROR to show
+                                            # If you commented out all DEBUG in middleware and only want its INFO and above,
+                                            # you could set this to logging.INFO.
+                                            # For now, keeping it DEBUG allows its INFO/WARNING/ERROR to pass through.
+
+# 3. Configure 'fake_news_telemetry' logger for file output
+telemetry_logger = logging.getLogger("fake_news_telemetry")
+telemetry_log_level_str = config.TELEMETRY_LOG_LEVEL.upper()
+telemetry_log_level = getattr(logging, telemetry_log_level_str, logging.INFO)
+telemetry_logger.setLevel(telemetry_log_level)
+
+try:
+    file_handler = logging.FileHandler("telemetry.log", mode='a') 
+    file_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    file_handler.setFormatter(file_formatter)
+    telemetry_logger.addHandler(file_handler)
+    telemetry_logger.propagate = False
+    # root_logger_instance.info("Telemetry logger configured to write to telemetry.log and not propagate to console.") # Remove test log
+except IOError as e:
+    root_logger_instance.error(f"Failed to set up FileHandler for telemetry.log: {e}")
+
 
 description = """
     # Fake News Detection API 🕵️‍♂️
@@ -207,7 +239,7 @@ async def on_startup():
 
     async with SessionLocal() as db:
         admin_email = "admin@admin.admin"
-        admin_password = "Pixma120+"
+        admin_password = config.ADMIN_PASSWORD
 
         result = await db.execute(select(User).filter(User.email == admin_email))
         existing_admin = result.scalar_one_or_none()

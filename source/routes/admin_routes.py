@@ -243,3 +243,65 @@ async def get_online_users(
         "active_window_minutes": minutes,
         "timestamp": datetime.now().isoformat()
     }
+
+@router.get("/user-statistics", dependencies=[Depends(get_current_admin_user)])
+async def get_user_statistics(
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get comprehensive user statistics including:
+    - Total number of users
+    - Number of admin users
+    - Number of regular users
+    - Number of users active in the last 30 days (total, admins, regular)
+    Requires admin authentication.
+    """
+    try:
+        # Calculate the cutoff time for 30-day activity
+        thirty_days_ago = datetime.now() - timedelta(days=30)
+        
+        # Get total user counts
+        result_total_users = await db.execute(select(func.count(User.id)))
+        total_users = result_total_users.scalar_one()
+        
+        # Get admin count
+        result_admin_users = await db.execute(
+            select(func.count(User.id))
+            .filter(User.role == "admin")
+        )
+        admin_users = result_admin_users.scalar_one()
+        
+        # Calculate regular users
+        regular_users = total_users - admin_users
+        
+        # Get users active in last 30 days
+        result_active_users = await db.execute(
+            select(User.id, User.role)
+            .join(UserActivity, User.id == UserActivity.user_id)
+            .filter(UserActivity.last_activity >= thirty_days_ago)
+            .group_by(User.id, User.role)
+        )
+        active_users_data = result_active_users.all()
+        
+        # Count active users by role
+        active_total = len(active_users_data)
+        active_admins = sum(1 for user_row in active_users_data if user_row.role == "admin")
+        active_regular = active_total - active_admins
+        
+        return {
+            "total_users": total_users,
+            "admin_users": admin_users,
+            "regular_users": regular_users,
+            "active_users_30d": {
+                "total": active_total,
+                "admin": active_admins,
+                "regular": active_regular
+            },
+            "timestamp": datetime.now()
+        }
+    except HTTPException: # Re-raise HTTPException if it's already one
+        raise
+    except Exception as e:
+        # Log the exception here if you have a logger configured
+        # logger.error(f"Error fetching user statistics: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="An unexpected error occurred while fetching user statistics.")

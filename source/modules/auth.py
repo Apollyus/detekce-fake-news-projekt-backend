@@ -10,11 +10,11 @@ from sqlalchemy.future import select
 from source.modules.database import get_db
 from source.modules.models import User
 
-SECRET_KEY = config.SECRET_KEY  # Použití SECRET_KEY z konfigurace
+SECRET_KEY = config.SECRET_KEY
 if not SECRET_KEY:
     raise ValueError("SECRET_KEY musí být nastaven v souboru .env")
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+ALGORITHM = config.ALGORITHM # Use ALGORITHM from config
+ACCESS_TOKEN_EXPIRE_MINUTES = config.ACCESS_TOKEN_EXPIRE_MINUTES # Use ACCESS_TOKEN_EXPIRE_MINUTES from config
 USER_ROLE = "user"
 ADMIN_ROLE = "admin"
 

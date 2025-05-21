@@ -6,7 +6,6 @@ from slowapi.util import get_remote_address
 from source.modules.auth import get_current_active_user
 
 # Configure logging
-logging.basicConfig(level=logging.ERROR)
 logger = logging.getLogger(__name__)
 
 # Create a limiter instance with the key function (using IP address)

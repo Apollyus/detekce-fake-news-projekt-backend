@@ -12,7 +12,13 @@ class Config:
         return "https://bezfejku.cz" if is_prod else "http://localhost:3000"
 
     # Bezpečnost
-    SECRET_KEY = os.environ.get("SECRET_KEY", "skibidi-sigma")  # Výchozí hodnota pouze pro vývoj
+    SECRET_KEY = os.environ.get("SECRET_KEY")
+    if not SECRET_KEY:
+        print("Warning: SECRET_KEY is not set in .env, using default (unsafe for production).")
+        SECRET_KEY = "your_default_secret_key_for_development_only_1234567890!@#$%^&*()"
+    ALGORITHM = "HS256" # Define the algorithm here
+    ACCESS_TOKEN_EXPIRE_MINUTES = int(os.environ.get("ACCESS_TOKEN_EXPIRE_MINUTES", 30))
+
     ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "vojtamavelkypele123")  # Výchozí hodnota pouze pro vývoj
 
     # API klíče
@@ -53,6 +59,9 @@ class Config:
         SQLALCHEMY_DATABASE_URL = (
             f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
         )
+
+    # Admin heslo
+    ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin")  # Výchozí hodnota pouze pro vývoj
 
 # Vytvoření singleton instance
 config = Config()

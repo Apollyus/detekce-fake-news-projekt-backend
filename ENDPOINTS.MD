@@ -204,6 +204,26 @@ Endpoints for administrative functionalities. Require admin authentication.
 *   **Response**:
     *   **Success (200 OK)**: Confirmation message or updated user object.
 
+### `GET /api/admin/user-statistics`
+*   **Description**: Provides comprehensive statistics about user accounts.
+*   **Request**:
+    *   **Headers**:
+        *   `Authorization: Bearer {admin_token}`
+*   **Response**:
+    *   **Success (200 OK)**:
+        ```json
+        {
+          "total_users": 100,
+          "admin_users": 5,
+          "regular_users": 95,
+          "active_users_30d": {
+            "total": 45,
+            "admin": 4,
+            "regular": 41
+          },
+          "timestamp": "2023-11-01T14:30:45.123456"
+        }
+
 ## Token (prefix: `/api`)
 
 ### `GET /api/validate_token`
