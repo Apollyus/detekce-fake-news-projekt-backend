@@ -301,3 +301,21 @@ Endpoints for handling OAuth authentication flows.
         *   `limit` (integer, optional, default: 10): Number of feedback entries to return (1-100).
 *   **Response**:
     *   **Success (200 OK)**: `List[UserFeedbackWithPromptOut]` (List of feedback objects, each potentially including details from the related telemetry record like the original prompt).
+
+### `GET /api/admin/online-users`
+*   **Description**: Gets the count of currently online users.
+*   **Request**:
+    *   **Headers**:
+        *   `Authorization: Bearer {admin_token}`
+    *   **Query Parameters**:
+        *   `minutes` (integer, optional, default: 15): Consider users active within this many minutes
+*   **Response**:
+    *   **Success (200 OK)**:
+        ```json
+        {
+          "online_users": 5,
+          "total_users": 100,
+          "active_window_minutes": 15,
+          "timestamp": "2023-11-01T14:30:45.123456"
+        }
+        ```
