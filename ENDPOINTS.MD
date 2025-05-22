@@ -170,6 +170,38 @@ Endpoints for administrative functionalities. Require admin authentication.
           {"key_value": "key2_value", "is_used": true, "created_at": "...", "user_id": 5}
         ]
         ```
+### `DELETE /api/admin/delete-key`
+*   **Description**: Deletes a beta (registration) key by its value or ID. Requires admin authentication.
+*   **Request**:
+    *   **Headers**:
+        *   `Authorization: Bearer {admin_token}`
+    *   **Body**: `DeleteKeyRequest`
+        ```json
+        {
+          "id": 123,                  // Optional: Key ID
+          "key_value": "key_string"   // Optional: Key value
+        }
+        ```
+        Note: At least one of `id` or `key_value` must be provided.
+*   **Response**:
+    *   **Success (200 OK)**:
+        ```json
+        {
+          "detail": "Key deleted successfully."
+        }
+        ```
+    *   **Error (404 Not Found)**:
+        ```json
+        {
+          "detail": "Key not found."
+        }
+        ```
+    *   **Error (401 Unauthorized)**: If the user is not an admin or not authenticated.
+        ```json
+        {
+          "detail": "Not authorized."
+        }
+        ```
 
 ### `GET /api/admin/telemetry`
 *   **Description**: Retrieves telemetry data.
@@ -268,6 +300,39 @@ Endpoints for administrative functionalities. Require admin authentication.
           "total_users": 100,
           "active_window_minutes": 15,
           "timestamp": "2023-11-01T14:30:45.123456"
+        }
+        ```
+
+### `DELETE /api/admin/users/delete`
+*   **Description**: Deletes a user by email or ID. Requires admin authentication.
+*   **Request**:
+    *   **Headers**:
+        *   `Authorization: Bearer {admin_token}`
+    *   **Body**: `UserDeleteRequest`
+        ```json
+        {
+          "id": 123,           // Optional: User ID
+          "email": "user@example.com"  // Optional: User email
+        }
+        ```
+        Note: At least one of [id](http://_vscodecontentref_/1) or [email](http://_vscodecontentref_/2) must be provided.
+*   **Response**:
+    *   **Success (200 OK)**:
+        ```json
+        {
+          "detail": "User deleted successfully."
+        }
+        ```
+    *   **Error (404 Not Found)**: If user doesn't exist.
+        ```json
+        {
+          "detail": "User not found."
+        }
+        ```
+    *   **Error (400 Bad Request)**: If neither id nor email is provided.
+        ```json
+        {
+          "detail": "Must provide user id or email."
         }
         ```
 

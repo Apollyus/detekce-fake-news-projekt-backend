@@ -58,6 +58,35 @@ async def get_telemetry_data():
     Získá telemetrická data pro službu detekce fake news (pouze pro adminy).
     Vyžaduje admin autentizaci.
     """
+@router.delete("/delete-key")
+async def delete_registration_key(
+    id: int = Query(None, description="ID of the registration key"),
+    key: str = Query(None, description="Value of the registration key"),
+    current_admin: dict = Depends(get_current_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Delete a registration (beta) key by its ID or value.
+    Only accessible to admins.
+    """
+    if id is None and key is None:
+        raise HTTPException(status_code=400, detail="Either 'id' or 'key' must be provided.")
+
+    query = None
+    if id is not None:
+        query = select(RegistrationKey).where(RegistrationKey.id == id)
+    elif key is not None:
+        query = select(RegistrationKey).where(RegistrationKey.key == key)
+
+    result = await db.execute(query)
+    reg_key = result.scalar_one_or_none()
+
+    if not reg_key:
+        raise HTTPException(status_code=404, detail="Registration key not found.")
+
+    await db.delete(reg_key)
+    await db.commit()
+    return {"detail": "Registration key deleted successfully."}
     return await get_metrics()  # Zajištění asynchronního volání telemetrie
 
 @router.get("/rate-limit-stats", dependencies=[Depends(get_current_admin_user)]) # Použití nové dependency
