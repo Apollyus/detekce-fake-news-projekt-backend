@@ -3,7 +3,7 @@ from source.modules.schemas import RegistrationKeyInfo
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from source.modules.database import get_db
-from source.modules.models import RegistrationKey, User, UserActivity, TelemetryRecord # Přidán import UserActivity a TelemetryRecord
+from source.modules.models import RegistrationKey, User, UserActivity, TelemetryRecord, UserActivityLog, RateLimitStats
 from source.modules.config import config
 from source.modules.utils import generate_registration_key
 from source.modules.auth import get_current_admin_user # Použití nové auth funkce
@@ -11,7 +11,6 @@ from typing import Dict, List, Any, Optional # Přidán Optional
 from source.modules.telemetry_module import get_metrics
 from sqlalchemy import func, desc, update # Přidán update
 from datetime import datetime, timedelta
-from source.modules.models import RateLimitStats
 
 # Vytvoření routeru pro administrativní endpointy
 router = APIRouter()
@@ -388,3 +387,76 @@ async def get_requests_last_24h(
     result = await db.execute(stmt)
     count = result.scalar_one()
     return {"requests_last_24h": count}
+
+@router.get("/recent-activity", dependencies=[Depends(get_current_admin_user)])
+async def get_recent_activity(
+    limit: int = Query(20, description="Number of recent records to show", ge=1, le=100),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Returns recent user activity across the application.
+    Shows user email, IP address, action type, URL, HTTP method, status code and timestamp.
+    Requires admin authentication.
+    
+    Filters out common authentication endpoints to reduce noise.
+    """
+    # Define endpoints to exclude (token validation and /api/me endpoints)
+    excluded_endpoints = [
+        '/api/validate_token',
+        '/api/token/validate',
+        '/api/me',
+        '/api/auth/validate',
+        '/api/token'
+    ]
+    
+    # Create a filter condition to exclude these endpoints
+    exclude_condition = ~UserActivityLog.endpoint.in_(excluded_endpoints)
+    
+    # Also exclude endpoints containing 'token' or '/api/me/'
+    for pattern in ['token', '/api/me/']:
+        exclude_condition = exclude_condition & ~UserActivityLog.endpoint.contains(pattern)
+    
+    result = await db.execute(
+        select(
+            UserActivityLog.action_type,
+            UserActivityLog.email,
+            UserActivityLog.ip_address,
+            UserActivityLog.endpoint,
+            UserActivityLog.http_method,  # Added HTTP method
+            UserActivityLog.status_code,  # Added status code
+            UserActivityLog.timestamp
+        )
+        .where(exclude_condition)
+        .order_by(desc(UserActivityLog.timestamp))
+        .limit(limit)
+    )
+    
+    activity_records = result.all()
+    
+    # Format the response to match your desired structure
+    activities = []
+    for record in activity_records:
+        relative_time = "před " + _get_relative_time(datetime.now() - record.timestamp)
+        
+        activities.append({
+            "action": record.action_type,
+            "user": record.email,
+            "ip_address": record.ip_address,
+            "url": record.endpoint,
+            "method": record.http_method,  # Added HTTP method
+            "status_code": record.status_code,  # Added status code
+            "timestamp": record.timestamp.isoformat(),  # Added ISO timestamp
+            "time": relative_time  # Keep the human-readable relative time
+        })
+    
+    return activities
+
+def _get_relative_time(delta):
+    """Convert a timedelta to a human-readable string in Czech"""
+    if delta.days > 0:
+        return f"{delta.days} dny" if 1 < delta.days < 5 else f"{delta.days} dny"
+    hours = delta.seconds // 3600
+    if hours > 0:
+        return f"{hours} hodinami"
+    minutes = (delta.seconds // 60) % 60
+    return f"{minutes} minutami"

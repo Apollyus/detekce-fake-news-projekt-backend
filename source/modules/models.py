@@ -125,3 +125,20 @@ class UserActivity(Base):
     last_activity = Column(DateTime, default=datetime.now)
 
     user = relationship("User", back_populates="activity")
+
+class UserActivityLog(Base):
+    """Model for tracking detailed user activity"""
+    __tablename__ = "user_activity_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    email = Column(String)
+    ip_address = Column(String)
+    action_type = Column(String)
+    endpoint = Column(String)
+    http_method = Column(String)  # New field for HTTP method
+    status_code = Column(Integer)  # New field for status code
+    timestamp = Column(DateTime, default=datetime.now, index=True)
+    
+    # Relationship
+    user = relationship("User", backref="activity_logs")
