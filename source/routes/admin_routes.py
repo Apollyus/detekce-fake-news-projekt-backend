@@ -212,6 +212,36 @@ async def list_users(
     users_result = await db.execute(select(User).offset(skip).limit(limit))
     users = users_result.scalars().all()
     return users
+from source.modules.schemas import UserDeleteRequest
+
+@router.delete(
+    "/users/delete",
+    dependencies=[Depends(get_current_admin_user)],
+    summary="Delete a user by email or ID",
+)
+async def delete_user(
+    request: UserDeleteRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Delete a user by email or ID. At least one must be provided.
+    """
+    query = None
+    if request.id is not None:
+        query = select(User).where(User.id == request.id)
+    elif request.email is not None:
+        query = select(User).where(User.email == request.email)
+    else:
+        raise HTTPException(status_code=400, detail="Must provide user id or email.")
+
+    result = await db.execute(query)
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+
+    await db.delete(user)
+    await db.commit()
+    return {"detail": "User deleted successfully."}
 
 @router.get("/online-users", dependencies=[Depends(get_current_admin_user)])
 async def get_online_users(

@@ -17,7 +17,12 @@ class User(Base):
 
     # Vztah k registračnímu klíči použitému uživatelem
     registration_key_used = relationship("RegistrationKey", back_populates="used_by_user", uselist=False)
-    activity = relationship("UserActivity", back_populates="user", uselist=False)
+    activity = relationship(
+        "UserActivity",
+        back_populates="user",
+        uselist=False,
+        cascade="all, delete-orphan"
+    )
 
 class RegistrationKey(Base):
     """Model pro registrační klíče"""
@@ -116,7 +121,7 @@ class UserActivity(Base):
     __tablename__ = "user_activities"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     last_activity = Column(DateTime, default=datetime.now)
 
     user = relationship("User", back_populates="activity")

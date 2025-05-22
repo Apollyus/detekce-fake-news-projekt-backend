@@ -18,6 +18,23 @@ class UserOut(BaseModel):
     """Schéma pro výstup informací o uživateli (bez citlivých údajů)"""
     id: int  # ID uživatele
     email: EmailStr  # Email uživatele
+class UserDeleteRequest(BaseModel):
+    """Schéma pro požadavek na smazání uživatele podle emailu nebo ID"""
+    id: Optional[int] = None
+    email: Optional[EmailStr] = None
+
+    @classmethod
+    def __get_validators__(cls):
+        yield from super().__get_validators__()
+        yield cls.at_least_one
+
+    @classmethod
+    def at_least_one(cls, values):
+        id_ = values.get('id')
+        email = values.get('email')
+        if not id_ and not email:
+            raise ValueError('Musí být zadán alespoň email nebo id uživatele.')
+        return values
     role: str # Přidáno: Role uživatele
 
     class Config:
