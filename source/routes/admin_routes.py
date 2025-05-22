@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from source.modules.schemas import RegistrationKeyInfo
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from source.modules.database import get_db
@@ -49,7 +50,7 @@ async def list_keys(
     """
     result = await db.execute(select(RegistrationKey))
     keys = result.scalars().all()  # Získání seznamu klíčů
-    return {"keys": [key.key for key in keys]}
+    return {"keys": [{"key": key.key, "used": key.used} for key in keys]}
 
 @router.get("/telemetry", dependencies=[Depends(get_current_admin_user)]) # Použití nové dependency
 async def get_telemetry_data():

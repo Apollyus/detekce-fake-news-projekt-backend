@@ -5,6 +5,10 @@ import re  # Import pro práci s regulárními výrazy
 from html import escape  # Import pro escapování HTML znaků
 from datetime import datetime  # Import pro práci s časovými údaji
 
+class RegistrationKeyInfo(BaseModel):
+    """Schéma pro výstup registračního klíče a jeho použitelnosti"""
+    key: str
+    used: bool
 class UserCreate(BaseModel):
     """Schéma pro vytvoření nového uživatele"""
     email: EmailStr  # Email uživatele (validovaný formát)
