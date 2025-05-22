@@ -142,6 +142,47 @@ Endpoints for user management and authentication.
 ## Admin (prefix: `/api/admin`)
 Endpoints for administrative functionalities. Require admin authentication.
 
+### `GET /api/admin/recent-activity`
+*   **Description**: Returns recent user activity across the application. Shows user email, IP address, action type, URL, HTTP method, status code, and timestamp. Filters out common authentication endpoints to reduce noise.
+*   **Request**:
+    *   **Headers**:
+        *   `Authorization: Bearer {admin_token}`
+    *   **Query Parameters**:
+        *   `limit` (integer, optional, default: 20): Number of recent records to show (1-100).
+*   **Response**:
+    *   **Success (200 OK)**:
+        ```json
+        [
+          {
+            "action": "Přihlášení", 
+            "user": "admin@bezfejku.cz",
+            "ip_address": "192.168.1.1",
+            "url": "/api/login",
+            "method": "POST",
+            "status_code": 200,
+            "timestamp": "2023-11-01T15:45:23.123456", 
+            "time": "před 5 minutami"
+          },
+          {
+            "action": "Analýza textu",
+            "user": "jan.novak@gmail.com",
+            "ip_address": "80.95.124.33",
+            "url": "/api/v2/fake_news_check",
+            "method": "GET",
+            "status_code": 200,
+            "timestamp": "2023-11-01T15:40:12.654321",
+            "time": "před 10 minutami"
+          }
+          // ... more activity records
+        ]
+        ```
+    *   **Error (401 Unauthorized)**: If admin authentication fails.
+        ```json
+        {
+          "detail": "Not authenticated"
+        }
+        ```
+
 ### `GET /admin/requests_last_24h`
 *   **Description**: Returns the number of requests made to the system in the last 24 hours. Intended for administrative monitoring and analytics.
 *   **Request**:
@@ -155,7 +196,7 @@ Endpoints for administrative functionalities. Require admin authentication.
           "requests_last_24h": 123
         }
         ```
-        
+
 ### `POST /api/admin/generate-keys`
 *   **Description**: Generates a specified number of new registration keys.
 *   **Request**:
