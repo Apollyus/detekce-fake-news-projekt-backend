@@ -142,6 +142,20 @@ Endpoints for user management and authentication.
 ## Admin (prefix: `/api/admin`)
 Endpoints for administrative functionalities. Require admin authentication.
 
+### `GET /admin/requests_last_24h`
+*   **Description**: Returns the number of requests made to the system in the last 24 hours. Intended for administrative monitoring and analytics.
+*   **Request**:
+    *   **Headers**:
+        *   `Authorization: Bearer {admin_token}`
+    *   No request body required.
+*   **Response**:
+    *   **Success (200 OK)**:
+        ```json
+        {
+          "requests_last_24h": 123
+        }
+        ```
+        
 ### `POST /api/admin/generate-keys`
 *   **Description**: Generates a specified number of new registration keys.
 *   **Request**:

@@ -3,7 +3,7 @@ from source.modules.schemas import RegistrationKeyInfo
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from source.modules.database import get_db
-from source.modules.models import RegistrationKey, User, UserActivity # Přidán import UserActivity
+from source.modules.models import RegistrationKey, User, UserActivity, TelemetryRecord # Přidán import UserActivity a TelemetryRecord
 from source.modules.config import config
 from source.modules.utils import generate_registration_key
 from source.modules.auth import get_current_admin_user # Použití nové auth funkce
@@ -53,11 +53,18 @@ async def list_keys(
     return {"keys": [{"key": key.key, "used": key.used} for key in keys]}
 
 @router.get("/telemetry", dependencies=[Depends(get_current_admin_user)]) # Použití nové dependency
-async def get_telemetry_data():
+async def get_telemetry_data(
+    current_admin: dict = Depends(get_current_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
     """
     Získá telemetrická data pro službu detekce fake news (pouze pro adminy).
     Vyžaduje admin autentizaci.
     """
+    result = await db.execute(select(func.count()).select_from(TelemetryRecord))
+    count = result.scalar_one()
+    return {"telemetry_count": count}
+
 @router.delete("/delete-key")
 async def delete_registration_key(
     id: int = Query(None, description="ID of the registration key"),
@@ -365,3 +372,19 @@ async def get_user_statistics(
         # Log the exception here if you have a logger configured
         # logger.error(f"Error fetching user statistics: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="An unexpected error occurred while fetching user statistics.")
+
+@router.get("/requests_last_24h")
+async def get_requests_last_24h(
+    current_admin: dict = Depends(get_current_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Returns the number of API requests in the past 24 hours.
+    Requires admin authentication.
+    """
+    now = datetime.utcnow()
+    since = now - timedelta(hours=24)
+    stmt = select(func.count()).select_from(TelemetryRecord).where(TelemetryRecord.timestamp >= since)
+    result = await db.execute(stmt)
+    count = result.scalar_one()
+    return {"requests_last_24h": count}
