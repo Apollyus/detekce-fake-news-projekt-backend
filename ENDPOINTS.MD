@@ -224,6 +224,53 @@ Endpoints for administrative functionalities. Require admin authentication.
           "timestamp": "2023-11-01T14:30:45.123456"
         }
 
+### `GET /api/admin/users`
+*   **Description**: Retrieves a list of all users.
+*   **Request**:
+    *   **Headers**:
+        *   `Authorization: Bearer {admin_token}`
+    *   **Query Parameters**:
+        *   `skip` (integer, optional, default: 0): Number of users to skip
+        *   `limit` (integer, optional, default: 100): Maximum number of users to return
+*   **Response**:
+    *   **Success (200 OK)**: List of user objects
+
+### `GET /api/admin/online-users`
+*   **Description**: Gets the count of currently online users.
+*   **Request**:
+    *   **Headers**:
+        *   `Authorization: Bearer {admin_token}`
+    *   **Query Parameters**:
+        *   `minutes` (integer, optional, default: 15): Consider users active within this many minutes
+*   **Response**:
+    *   **Success (200 OK)**:
+        ```json
+        {
+          "online_users": 5,
+          "total_users": 100,
+          "active_window_minutes": 15,
+          "timestamp": "2023-11-01T14:30:45.123456"
+        }
+        ```
+
+### `GET /api/admin/online-users`
+*   **Description**: Gets the count of currently online users.
+*   **Request**:
+    *   **Headers**:
+        *   `Authorization: Bearer {admin_token}`
+    *   **Query Parameters**:
+        *   `minutes` (integer, optional, default: 15): Consider users active within this many minutes
+*   **Response**:
+    *   **Success (200 OK)**:
+        ```json
+        {
+          "online_users": 5,
+          "total_users": 100,
+          "active_window_minutes": 15,
+          "timestamp": "2023-11-01T14:30:45.123456"
+        }
+        ```
+
 ## Token (prefix: `/api`)
 
 ### `GET /api/validate_token`
@@ -321,21 +368,3 @@ Endpoints for handling OAuth authentication flows.
         *   `limit` (integer, optional, default: 10): Number of feedback entries to return (1-100).
 *   **Response**:
     *   **Success (200 OK)**: `List[UserFeedbackWithPromptOut]` (List of feedback objects, each potentially including details from the related telemetry record like the original prompt).
-
-### `GET /api/admin/online-users`
-*   **Description**: Gets the count of currently online users.
-*   **Request**:
-    *   **Headers**:
-        *   `Authorization: Bearer {admin_token}`
-    *   **Query Parameters**:
-        *   `minutes` (integer, optional, default: 15): Consider users active within this many minutes
-*   **Response**:
-    *   **Success (200 OK)**:
-        ```json
-        {
-          "online_users": 5,
-          "total_users": 100,
-          "active_window_minutes": 15,
-          "timestamp": "2023-11-01T14:30:45.123456"
-        }
-        ```
