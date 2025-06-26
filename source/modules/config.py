@@ -23,6 +23,7 @@ class Config:
 
     # API klíče
     OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+    OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
     GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "")
     GOOGLE_SEARCH_ENGINE_ID = os.environ.get("GOOGLE_SEARCH_ENGINE_ID", "")
     MISTRAL_API_KEY = os.environ.get("MISTRAL_API_KEY", "")
