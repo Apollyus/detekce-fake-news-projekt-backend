@@ -48,6 +48,7 @@ def check_and_generate_search_phrase(user_input: str):
         PRAVIDLO: Při nejistotě nastav valid=false!
 
         Text: "{user_input}"
+        Aktuální datum: {current_date}
 
         Odpověz pouze JSON:
         {{
