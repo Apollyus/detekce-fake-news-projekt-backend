@@ -1,83 +1,148 @@
-# Jak začít s touto aplikací
+# 🔍 Detekce Fake News - Backend API
 
-Tento návod vám pomůže začít s aplikací pro detekci falešných zpráv. Postupujte podle následujících kroků:
+Backend pro projekt bezfejku.cz. Cílem této aplikace je ověřování fake news pomocí umělé inteligence. 
 
-# Ukoly pro backend (Arsen a Matěj)
+## 📋 Přehled projektu
 
-## Popis
-Vaším úkolem je vytvořit nový endpoint v aplikaci, který bude generovat data fiktivního uživatele a vracet je ve formátu JSON. Pro generování dat použijte knihovnu `Faker`. Úkoly dělejte na Vaší příslušné větvi (branch) s vaším jménem. Co to je a jak se na to přepnout najdete v té příručce. Nezapomňte hlavně potom změny "pushnout" na github ať je vidí i ostatní.
+Tato aplikace poskytuje RESTful API pro:
+- **Detekci fake news** pomocí AI modelů (OpenAI, Mistral, OpenRouter)
+- **Ověřování faktů** prostřednictvím Google Search API
+- **Uživatelskou autentizaci** přes Google OAuth
+- **Rate limiting** a telemetrii pro monitoring
 
-## Požadavky
-- Endpoint by měl být dostupný na adrese `/generate-user`.
-- Data fiktivního uživatele by měla zahrnovat:
-  - **Jméno**
-  - **Adresa**
-  - **Email**
-  - **Uživatelské jméno**
-  - **Datum narození**
-- Data by měla být vrácena ve formátu JSON.
+## 🚀 Jak spustit projekt
 
-### Instalace knihovny Faker
+Před samotným pokusem o spuštění je potřeba vytvořit .env soubor se všemy potřebnými proměnnými.
+
 ```bash
-pip install faker
+
+Nejjednodušší způsob spuštění pomocí Docker Compose:
+
+```bash
+# Naklonování repozitáře
+git clone https://github.com/Apollyus/detekce-fake-news-projekt-backend.git
+cd detekce-fake-news-projekt-backend
+
+# Spuštění všech služeb
+docker-compose up --build
 ```
 
-## Očekávaný výstup
+**Služby budou dostupné na:**
+- 🌐 **Backend API**: http://localhost:8000
+- 📖 **Dokumentace API**: http://localhost:8000/docs
+- 🗄️ **pgAdmin**: http://localhost:5050 
+- 💾 **PostgreSQL**: localhost:5432
 
-Příklad JSON odpovědi:
-```json
-{
-  "name": "Jan Novák",
-  "address": "123 Hlavní, Praha, Česko",
-  "email": "jan.novak@example.com",
-  "username": "jan.novak92",
-  "birthdate": "1992-05-14"
-}
+### Připojení k databázi
+
+**Z vašeho počítače:**
+- Hostitel: `db`
+- Port: `5432`
+- Databáze: `bezfejku_db`
+- Uživatelské jméno: `postgres`
+- Heslo: `postgres`
+
+## 🎯 Endpointy API
+
+### Základní analýza
+```http
+GET /api/v1/{prompt}
+GET /api/v1?prompt=text_k_analyze
 ```
 
-## Shrnutí
-Tento úkol vám pomůže procvičit si:
-- Práci s endpointy ve FastAPI.
-- Použití knihovny Faker pro generování testovacích dat.
-- Testování API pomocí prohlížeče nebo Postmanu.
+### Detekce fake news
+```http
+GET /api/v2/fake_news_check/{prompt}
+GET /api/v2/fake_news_check?prompt=text_zpravy
+```
 
-# Začínáme
-## Požadavky
+### Ověření identity
+```http
+POST /auth/login
+GET /auth/callback
+POST /auth/logout
+```
 
-1. **Nainstalujte Python**: Stáhněte a nainstalujte Python z [oficiálních stránek](https://www.python.org/downloads/). Ujistěte se, že během instalace zaškrtnete možnost "Add Python to PATH".
+### Administrátorské rozhraní
+```http
+GET /admin/users
+GET /admin/stats
+```
 
-2. **Nainstalujte Git**: Stáhněte a nainstalujte Git z [oficiálních stránek](https://git-scm.com/downloads).
+## 🛠️ Technologie
 
-## Stažení projektu
+- **API framework**: FastAPI (Python)
+- **Databáze**: PostgreSQL + SQLAlchemy
+- **AI modely**: OpenAI GPT, OpenRouter
+- **Zpracování jazyka**: spaCy, transformers, NLTK
+- **Extrakce z webu**: BeautifulSoup, breadability
+- **Ověření identity**: OAuth 2.0 (Google), JWT tokeny
+- **Nasazení**: Docker, Docker Compose
 
-1. Otevřete příkazový řádek (Command Prompt) nebo PowerShell.
-2. Naklonujte repozitář pomocí následujícího příkazu:
-    ```sh
-    git clone https://github.com/vase-uzivatelske-jmeno/detekce-fake-news-projekt.git
-    ```
-3. Přejděte do složky projektu:
-    ```sh
-    cd detekce-fake-news-projekt
-    ```
+## 📁 Struktura projektu
 
-## Instalace závislostí
+```
+├── docs/                   # Dokumentace
+│   ├── endpoints.md        # API endpointy
+│   ├── quickstart.md       # Rychlý start
+│   └── rate_limits.md      # Omezení rychlosti
+├── source/
+│   ├── app.py              # Hlavní FastAPI aplikace
+│   ├── modules/            # Základní moduly
+│   │   ├── config.py       # Konfigurace
+│   │   ├── database.py     # Databázové připojení
+│   │   ├── models.py       # SQLAlchemy modely
+│   │   └── ...
+│   ├── routes/             # Endpointy API
+│   │   ├── fake_news_routes.py
+│   │   ├── auth_routes.py
+│   │   └── ...
+│   └── middleware/         # Middleware pro omezení rychlosti
+├── main.py                 # Vstupní bod aplikace
+├── init_db.py             # Inicializace databáze
+├── docker-compose.yml     # Konfigurace Dockeru
+├── requirements.txt       # Python závislosti
+└── .env                   # Proměnné prostředí
+```
 
-1. Vytvořte a aktivujte virtuální prostředí:
-    ```sh
-    python -m venv venv
-    .\venv\Scripts\activate
-    ```
-2. Nainstalujte potřebné balíčky:
-    ```sh
-    pip install -r requirements.txt
-    ```
+## 🔧 Užitečné příkazy
 
-## Spuštění aplikace
+```bash
+# Zobrazení běžících kontejnerů
+docker ps
 
-1. Spusťte aplikaci pomocí následujícího příkazu:
-    ```sh
-    python main.py
-    ```
+# Zobrazení logů
+docker-compose logs backend
+docker-compose logs db
 
+# Restart služeb
+docker-compose restart
 
-docker run -d -p 8000:8000 --env-file /path/to/your/.env fakecheck-api
+# Zastavení a vyčištění
+docker-compose down -v
+
+# Spuštění na pozadí
+docker-compose up -d
+```
+
+## 🐛 Řešení problémů
+
+### Databáze není dostupná
+Ujistěte se, že PostgreSQL kontejner běží a porty jsou správně namapované.
+
+### AI API nefungují
+Zkontrolujte platnost API klíčů v souboru `.env`.
+
+### Port je již používán
+Změňte porty v `docker-compose.yml` nebo zastavte konfliktní služby.
+
+## 📚 Další dokumentace
+
+- 📖 **[Kompletní API dokumentace](docs/endpoints.md)** - Detailní popis všech endpointů
+- ⚡ **[Rychlý start](docs/quickstart.md)** - 1-minutové nastavení projektu
+- 🚫 **[Omezení rychlosti](docs/rate_limits.md)** - Pravidla pro API volání
+
+---
+
+**Autor**: Apollyus  
+**Repozitář**: https://github.com/Apollyus/detekce-fake-news-projekt-backend

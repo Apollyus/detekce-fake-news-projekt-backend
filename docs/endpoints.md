@@ -1,28 +1,38 @@
-## General
+# 🔗 API Endpointy - Detekce Fake News
+
+Kompletní dokumentace všech API endpointů pro systém detekce fake news.
+
+## 🌐 Základní informace
+
+**Základní URL**: `http://localhost:8000`  
+**Dokumentace API**: `http://localhost:8000/docs` (Swagger UI)  
+**Omezení rychlosti**: Viz [rate_limits.md](docs/rate_limits.md)
+
+## Obecné endpointy
 
 ### `GET /`
-*   **Description**: Basic health check endpoint to test if the application is available.
-*   **Request**: None
-*   **Response**:
-    *   **Success (200 OK)**:
+*   **Popis**: Základní health check endpoint pro testování dostupnosti aplikace.
+*   **Požadavek**: Žádný
+*   **Odpověď**:
+    *   **Úspěch (200 OK)**:
         ```json
         {"message": "Hello, World!"}
         ```
 
 ### `GET /favicon.ico`
-*   **Description**: Returns the favicon icon image for the application.
-*   **Request**: None
-*   **Response**:
-    *   **Success (200 OK)**: The `favicon.ico` file.
+*   **Popis**: Vrací favicon ikonu aplikace.
+*   **Požadavek**: Žádný
+*   **Odpověď**:
+    *   **Úspěch (200 OK)**: Soubor `favicon.ico`.
 
-## Fake News (prefix: `/api/v2`)
-Endpoints for detecting fake news. These endpoints are rate-limited as described in rate_limits.md.
+## Detekce Fake News (prefix: `/api/v2`)
+Endpointy pro detekci falešných zpráv. Tyto endpointy mají omezení rychlosti jak je popsáno v rate_limits.md.
 
 ### `GET /api/v2/fake_news_check/{prompt}`
-*   **Description**: Analyzes the provided text (via path parameter) to check if it's fake news.
-*   **Request**:
-    *   **Path Parameters**:
-        *   `prompt` (string): The news text or claim to verify.
+*   **Popis**: Analyzuje poskytnutý text (přes path parametr) pro zjištění, zda se jedná o fake news.
+*   **Požadavek**:
+    *   **Parametry v cestě**:
+        *   `prompt` (string): Text zprávy nebo tvrzení k ověření.
 *   **Response**:
     *   **Success (200 OK)**:
         ```json
