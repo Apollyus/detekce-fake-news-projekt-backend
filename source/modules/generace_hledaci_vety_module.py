@@ -1,85 +1,96 @@
 import re
+import json
+import sys
+import os
 from datetime import datetime
-from mistralai import Mistral
-from source.modules.config import config  # Import instance konfigurace, ne modul
+from openai import OpenAI
 
-api_key = config.MISTRAL_API_KEY  # Použití API klíče z konfigurace
-model = "mistral-small-latest"  # Změněno na platný název modelu
+# Přidání root adresáře do sys.path pro import konfigurace
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
-client = Mistral(api_key=api_key)
+# Import konfigurace
+try:
+    from source.modules.config import config
+except ImportError:
+    # Fallback pro přímé spuštění
+    sys.path.append(os.path.dirname(__file__))
+    from config import config
 
 def check_and_generate_search_phrase(user_input: str):
+    # Získání API klíče z konfigurace
+    api_key = config.OPENROUTER_API_KEY
+    if not api_key:
+        raise ValueError("OPENROUTER_API_KEY není nastavený v environment proměnných")
+    
+    # Nastavení klienta pro OpenRouter
+    client = OpenAI(
+        base_url="https://openrouter.ai/api/v1",
+        api_key=api_key,
+    )
+    
     # Získání aktuálního data v čitelném formátu
     current_date = datetime.now().strftime("%d. %m. %Y")
     
     prompt = f"""
-        Zhodnoť následující text a rozhodni, zda jde o tvrzení, které lze ověřit na internetu.
+        Analyzuj text a rozhodni, zda obsahuje KONKRÉTNÍ OVĚŘITELNÉ TVRZENÍ.
         
-        Typy textů:
-        1. OVĚŘITELNÉ TVRZENÍ - obsahuje konkrétní fakta, která lze ověřit (např. "Prezident Zeman podepsal zákon")
-        2. KONVERZAČNÍ TEXT - běžná konverzace, pozdravy, otázky (např. "Jak se máš?")
-        3. NEVALIDNÍ TVRZENÍ - příliš vágní, nesmyslné nebo neobsahuje ověřitelné informace
+        VALIDNÍ (valid=true) POUZE pokud obsahuje:
+        - Konkrétní události: "Prezident podepsal zákon", "Anna K. zemřela"
+        - Faktické informace: "Apple vydalo iPhone", "Nehoda na D1"
+        - Konkrétní data: "Inflace je 5%", "Teplota 25°C"
         
-        Pokud jde o ověřitelné tvrzení:
-        - Vytvoř z něj ideální krátkou frázi pro vyhledávač
-        - Nastav valid=true
-        - Vygeneruj klíčová slova
+        NEVALIDNÍ (valid=false) pokud obsahuje:
+        - Pozdravy: "Ahoj", "Dobrý den", "Jak se máš?"
+        - Otázky obecné: "Jaké je počasí?", "Kde bydlíš?"
+        - Obecné pravdy: "Slunce je žluté", "Lidé potřebují jídlo"
+        - Vágní výroky: "Něco se stalo", "Je zajímavé"
         
-        Pokud jde o konverzační text:
-        - Nastav valid=true
-        - Nastav search_query=""
-        - Nastav keywords=[]
-        - Nastav is_conversational=true
-        
-        Pokud jde o nevalidní tvrzení:
-        - Nastav valid=false
-        - Nastav search_query=""
-        - Nastav keywords=[]
+        PRAVIDLO: Při nejistotě nastav valid=false!
 
-        Aktuální datum: {current_date}
         Text: "{user_input}"
 
-        Odpověz přesně v tomto JSON formátu bez jakýchkoliv dalších komentářů:
+        Odpověz pouze JSON:
         {{
         "search_query": "hledací fráze nebo prázdný řetězec",
         "valid": true nebo false,
-        "is_conversational": true nebo false,
         "confidence": číslo od 0.0 do 1.0,
         "keywords": ["klíčové slovo 1", "klíčové slovo 2", "klíčové slovo 3", ...]
         }}
 """
 
-    chat_response = client.chat.complete(
-        model=model,
-        messages=[
-            {
-                "role": "user",
-                "content": prompt.strip(),
-            },
-        ]
-    )
-
-    content = chat_response.choices[0].message.content.strip()
-    print("LLM odpověď:", content)
-
     try:
-        # Extrakce části s JSON pomocí regulárního výrazu pro řešení případných problémů s formátováním
-        json_match = re.search(r'\{.*\}', content, re.DOTALL)
-        if json_match:
-            json_str = json_match.group(0)
-            # Nahrazení JavaScript boolean hodnot Python boolean hodnotami
-            json_str = json_str.replace('true', 'True').replace('false', 'False')
-            # Použití eval pro zpracování Python boolean hodnot
-            result = eval(f"dict({json_str})")
-        else:
-            raise ValueError("V odpovědi nebyl nalezen žádný JSON")
-            
+        chat_response = client.chat.completions.create(
+            model="mistralai/mistral-7b-instruct",  # Používáme Mistral model přes OpenRouter
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt.strip(),
+                },
+            ],
+            temperature=0.3,
+            max_tokens=500
+        )
+
+        content = chat_response.choices[0].message.content.strip()
+        print("LLM odpověď:", content)
+
+        try:
+            # Pokus o parsování jako čistý JSON
+            result = json.loads(content)
+        except json.JSONDecodeError:
+            # Fallback: Extrakce části s JSON pomocí regulárního výrazu
+            json_match = re.search(r'\{.*\}', content, re.DOTALL)
+            if json_match:
+                json_str = json_match.group(0)
+                result = json.loads(json_str)
+            else:
+                raise ValueError("V odpovědi nebyl nalezen žádný JSON")
+                
     except Exception as e:
-        print("Chyba při parsování odpovědi:", e)
+        print("Chyba při volání API nebo parsování odpovědi:", e)
         result = {
             "search_query": "",
             "valid": False,
-            "is_conversational": False,
             "confidence": 0.0,
             "keywords": []
         }
