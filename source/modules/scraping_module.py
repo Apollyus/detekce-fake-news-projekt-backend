@@ -3,8 +3,14 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
 import re
 import logging
+import sys
 
 # Nastavení loggeru
+logging.basicConfig(
+    stream=sys.stdout,
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
 class BaseScraper:
@@ -18,14 +24,31 @@ class BaseScraper:
     
     def fetch(self):
         """Načte HTML obsah článku"""
+        import time
+        start_time = time.time()
+        logger.info(f"Fetching started for URL: {self.url}")
+        
         response = requests.get(self.url, headers=self.headers)
         response.raise_for_status()
+        
+        end_time = time.time()
+        duration = end_time - start_time
+        logger.info(f"Fetching completed for URL: {self.url} in {duration:.2f} seconds")
         return response.text
     
     def scrape(self):
         """Vyextrahuje data článku"""
+        import time
+        start_time = time.time()
+        logger.info(f"Scraping started for URL: {self.url}")
+        
         html = self.fetch()
-        return self.parse(html)
+        result = self.parse(html)
+        
+        end_time = time.time()
+        duration = end_time - start_time
+        logger.info(f"Scraping completed for URL: {self.url} in {duration:.2f} seconds")
+        return result
         
     def parse(self, html):
         """Zpracuje HTML a extrahuje data článku - musí být implementováno v podtřídách"""
@@ -538,11 +561,16 @@ def scrape_article(article_url, portal=None):
         else:
             logger.warning(f"Nepodporovaný portál: {portal}, použití obecného scraperu")
             scraper = GenericArticleScraper(article_url)
+
+        logger.info(f"Using scraper: {scraper.__class__.__name__} for URL: {article_url}")
         
         return scraper.scrape()
         
     except Exception as e:
-        logger.error(f"Chyba při scrapování článku {article_url}: {str(e)}")
+        logger.error(
+            f"Chyba při scrapování článku {article_url} "
+            f"pomocí scraperu {scraper.__class__.__name__}: {str(e)}"
+        )
         # Pokud selže specializovaný scraper, zkusíme obecný
         if portal.lower() != 'generic':
             logger.info(f"Zkouším obecný scraper pro {article_url}")
@@ -550,7 +578,10 @@ def scrape_article(article_url, portal=None):
                 scraper = GenericArticleScraper(article_url)
                 return scraper.scrape()
             except Exception as e2:
-                logger.error(f"Selhal i obecný scraper pro {article_url}: {str(e2)}")
+                logger.error(
+                    f"Selhal i obecný scraper pro {article_url} "
+                    f"pomocí scraperu {scraper.__class__.__name__}: {str(e2)}"
+                )
                 raise
         else:
             raise
