@@ -3,7 +3,7 @@ from source.modules.vyhledavani_googlem_module import google_search
 from source.modules.filtrace_clanku_module import filter_relevant_articles
 from source.modules.finalni_rozhodnuti_module import evaluate_claim
 from source.modules.telemetry_module import log_request_start, log_step_time, log_request_end, log_error, log_processing_data
-from source.modules.scraping_module import scrape_article, detect_portal
+from source.modules.scraping_module import scrape_articles
 import logging # Add this import
 
 # Initialize logger for this module
@@ -160,21 +160,32 @@ async def process_fake_news(prompt: str):
         filtered_articles = google_search_results
         
         # 6) Scraping obsahu článků
+        urls_to_scrape = [article["link"] for article in filtered_articles]
+        
+        scraped_content_list = []
+        if urls_to_scrape:
+            try:
+                # Zavoláme scrapovací funkci pouze jednou se všemi URL
+                scraped_content_list = await scrape_articles(urls_to_scrape)
+            except Exception as e:
+                log_processing_data(request_context, "scraping_error", f"Error scraping articles: {str(e)}")
+
+        # Vytvoříme mapu pro snadné dohledání obsahu podle URL
+        scraped_data_map = {item['url']: item for item in scraped_content_list}
+
         scraped_articles = []
         for article in filtered_articles:
-            try:
-                portal = detect_portal(article["link"])
-                if portal != "unknown":
-                    scraped_content = scrape_article(article["link"], portal)
-                    if scraped_content and scraped_content.get("content"):
-                        article["full_content"] = scraped_content["content"]
-                        article["source"] = scraped_content["source"]
-                        article["published_date"] = scraped_content["published_date"]
-                        article["author"] = scraped_content["author"]
-                        scraped_articles.append(article)
-            except Exception as e:
-                log_processing_data(request_context, "scraping_error", f"Error scraping {article['link']}: {str(e)}")
-                continue
+            # Zkontrolujeme, zda pro danou URL máme stažený obsah
+            if article["link"] in scraped_data_map:
+                scraped_content = scraped_data_map[article["link"]]
+                # Ověříme, že obsah není prázdný
+                if scraped_content and scraped_content.get("scraped_text"):
+                    article["full_content"] = scraped_content["scraped_text"]
+                    # Další pole nejsou vracena z `scrape_articles`, můžeme je nastavit na None nebo je nechat
+                    article["source"] = scraped_content.get("final_url")
+                    article["published_date"] = None # scrape_articles nevrací datum
+                    article["author"] = None # scrape_articles nevrací autora
+                    scraped_articles.append(article)
         
         log_step_time(request_context, "article_scraping")
         
