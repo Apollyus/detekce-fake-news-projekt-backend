@@ -5,7 +5,7 @@ from datetime import datetime
 from sqlalchemy.future import select
 from source.modules.database import AsyncSessionLocal
 from source.modules.models import User, UserActivity, UserActivityLog
-import jwt
+from jose import jwt, exceptions
 import logging
 from source.modules.config import config
 
@@ -152,9 +152,9 @@ class UserActivityMiddleware(BaseHTTPMiddleware):
                 elif user_email:
                     await self._log_anonymous_activity(user_email, client_ip, action_type, endpoint)
 
-            except jwt.ExpiredSignatureError:
+            except exceptions.ExpiredSignatureError:
                 await self._log_anonymous_activity("expired_token", client_ip, action_type, endpoint)
-            except jwt.InvalidTokenError:
+            except exceptions.InvalidTokenError:
                 await self._log_anonymous_activity("invalid_token", client_ip, action_type, endpoint)
             except Exception as e:
                 logger.error(f"Error processing user activity: {e}")

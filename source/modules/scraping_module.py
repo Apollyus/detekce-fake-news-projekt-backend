@@ -1,3 +1,5 @@
+# Váš soubor: source/modules/scraping_module.py
+
 import asyncio
 import os
 import random
@@ -19,37 +21,51 @@ async def scrape_articles(urls: List[str]) -> List[Dict[str, Any]]:
         urls: Seznam URL adres článků k obnažování
         
     Returns:
-        Seznam slovníků s informacemi o článcích:
-        - url: původní URL
-        - final_url: finální URL (po redirectech)
-        - title: titulek článku
-        - scraped_text: extrahovaný text článku
-        - text_length: délka textu
-        - quality_score: kvalitativní skóre
-        - was_redirected: zda došlo k redirectu
+        Seznam slovníků s informacemi o článcích.
     """
     logging.info(f"Scraping started for {len(urls)} URLs.")
     
     # Seznam pro ukládání výsledků
     scraped_articles = []
     
+    # ==============================================================================
+    # ZMĚNA JE ZDE: Sjednocená a opravená konfigurace crawleru
+    # ==============================================================================
+    
+    # 1. Vytvoříme crawler bez jakýchkoliv spouštěcích voleb, ty definujeme níže.
     crawler = PlaywrightCrawler(
         headless=True,
-        request_handler_timeout=timedelta(seconds=120),
+        request_handler_timeout=timedelta(seconds=120)
     )
     
+    # 2. Všechny volby pro spuštění prohlížeče definujeme na JEDINÉM místě.
     crawler.browser_pool_options = {
         'stealth': True,
         'launch_options': {
-            'args': ['--start-maximized', '--disable-web-security', '--disable-features=VizDisplayCompositor'],
+            'args': [
+                # Klíčové argumenty pro stabilní běh v Dockeru
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                
+                # Vaše původní, zachované argumenty
+                '--start-maximized', 
+                '--disable-web-security', 
+                '--disable-features=VizDisplayCompositor'
+            ],
             'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
             'viewport': {'width': 1920, 'height': 1080}
         }
     }
     crawler.navigation_timeout_sec = 120
+    
+    # ==============================================================================
+    # KONEC ZMĚN - ZBYTEK KÓDU JE VÁŠ PŮVODNÍ A JE V POŘÁDKU
+    # ==============================================================================
 
     async def super_aggressive_cookie_handler(page, log):
         """Super agresivní handler pro cookie bannery - zkusí vše možné"""
+        # ... (váš kód zde zůstává beze změny)
         log.info("🔍 Spouštím super agresivní cookie banner handler...")
         
         # Počkáme trochu déle na načtení
@@ -322,6 +338,7 @@ async def scrape_articles(urls: List[str]) -> List[Dict[str, Any]]:
 
     @crawler.pre_navigation_hook
     async def handle_consent(context: PlaywrightCrawlingContext):
+        # ... (váš kód zde zůstává beze změny)
         url = context.request.url
         log = context.log
 
@@ -376,6 +393,7 @@ async def scrape_articles(urls: List[str]) -> List[Dict[str, Any]]:
 
     @crawler.router.default_handler
     async def request_handler(context: PlaywrightCrawlingContext):
+        # ... (váš kód zde zůstává beze změny)
         log, page, request = context.log, context.page, context.request
         log.info(f"Zpracovávám: {request.url} - Titulek: {await page.title()}")
 
@@ -715,8 +733,9 @@ async def scrape_articles(urls: List[str]) -> List[Dict[str, Any]]:
     return scraped_articles
 
 
-# Příklad použití funkce
+# Příklad použití funkce (zůstává stejný)
 async def example_usage():
+    # ... (váš kód zde zůstává beze změny)
     """Příklad jak používat funkci scrape_articles"""
     
     # Seznam URL pro testování
@@ -750,8 +769,7 @@ async def example_usage():
         print(f"❌ Chyba při scrapování: {e}")
         return []
 
-
-# Spuštění příkladu pokud je soubor spuštěn přímo
+# Spuštění příkladu pokud je soubor spuštěn přímo (zůstává stejný)
 if __name__ == '__main__':
     # Spustíme příklad použití
     results = asyncio.run(example_usage())
