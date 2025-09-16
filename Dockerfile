@@ -1,51 +1,66 @@
-FROM python:3.13-slim
+# Use official Playwright image as base - updated to latest version
+FROM mcr.microsoft.com/playwright/python:v1.55.0-jammy
 
-WORKDIR /app
+# Set timezone and make installation non-interactive
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=Europe/Prague
 
-# Install system dependencies for Playwright and for building Python packages
+# Install GPG and fix the key issue, then install Python 3.13
 RUN apt-get update && apt-get install -y \
+    gnupg \
+    software-properties-common \
+    curl \
+    tzdata \
+    && curl -fsSL https://keyserver.ubuntu.com/pks/lookup?op=get\&search=0xF23C5A6CF475977595C89F51BA6932366A755776 | gpg --dearmor > /etc/apt/trusted.gpg.d/deadsnakes.gpg \
+    && echo "deb https://ppa.launchpadcontent.net/deadsnakes/ppa/ubuntu jammy main" > /etc/apt/sources.list.d/deadsnakes-ppa.list \
+    && apt-get update \
+    && apt-get install -y \
+    python3.13 \
+    python3.13-dev \
+    python3.13-venv \
     build-essential \
     gcc \
     g++ \
     cmake \
     pkg-config \
-    python3-dev \
-    # Added dependencies for Playwright browsers
-    libnss3 \
-    libnspr4 \
-    libdbus-1-3 \
-    libatk1.0-0 \
-    libatk-bridge2.0-0 \
-    libcups2 \
-    libdrm2 \
-    libxkbcommon0 \
-    libxcomposite1 \
-    libxdamage1 \
-    libxfixes3 \
-    libxrandr2 \
-    libgbm1 \
-    libasound2 \
     && rm -rf /var/lib/apt/lists/*
+
+# Install pip for Python 3.13
+RUN curl -sS https://bootstrap.pypa.io/get-pip.py | python3.13
+
+# Set Python 3.13 as default
+RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.13 1
+RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.13 1
+
+# Create non-root user for Playwright
+RUN groupadd -r appuser && useradd -r -g appuser -G audio,video appuser \
+    && mkdir -p /home/appuser/Downloads \
+    && mkdir -p /app \
+    && chown -R appuser:appuser /home/appuser \
+    && chown -R appuser:appuser /app
+
+WORKDIR /app
 
 # Copy requirements first to leverage Docker caching
 COPY requirements.txt .
 
-# Install Python dependencies
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir bcrypt==3.2.2 && \
-    pip install --no-cache-dir -r requirements.txt
+# Install Python dependencies using Python 3.13
+RUN python3.13 -m pip install --no-cache-dir --upgrade pip && \
+    python3.13 -m pip install --no-cache-dir bcrypt==3.2.2 && \
+    python3.13 -m pip install --no-cache-dir -r requirements.txt
 
-# Install Playwright browsers and their dependencies
-RUN playwright install --with-deps
-
-# Copy the application code
+# Copy the application code and set proper ownership
 COPY . .
+RUN chown -R appuser:appuser /app
 
-# Expose the port that FastAPI will run on
+# Set environment variables for Playwright
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+
+# Switch to non-root user
+USER appuser
+
 EXPOSE 8000
-
 ENV ENVIRONMENT="production"
 
-# Command to run the application
-#CMD ["uvicorn", "source.app:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
-CMD python init_db.py && python main.py
+CMD python3.13 init_db.py && python3.13 main.py
