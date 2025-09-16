@@ -1,10 +1,13 @@
 from openai import OpenAI
 from source.modules.config import config  # Import instance konfigurace, ne modul
 
-api_key = config.OPENAI_API_KEY  # Použití API klíče z konfigurace
+api_key = config.OPENROUTER_API_KEY  # Použití API klíče z konfigurace
 
-# Inicializace klienta s API klíčem jako pojmenovaným parametrem
-client = OpenAI(api_key=api_key)
+# Inicializace klienta s OpenRouter API klíčem
+client = OpenAI(
+    base_url="https://openrouter.ai/api/v1",
+    api_key=api_key
+)
 
 def evaluate_claim(prompt, found_claims):
     """
@@ -20,38 +23,28 @@ def evaluate_claim(prompt, found_claims):
     claims_text = "\n".join([f"- {claim}" for claim in found_claims])
     
     response = client.chat.completions.create(
-        model="gpt-4.1-nano-2025-04-14",
+        model="google/gemma-3-27b-it",
         messages=[
     {
         "role": "system",
-        "content": """You are a fact-checking AI assistant. You MUST respond in Czech language only.
-        Analyze the given claim against the provided evidence.
-        If there is insufficient or no concrete evidence provided, you should lean towards marking the claim as FALSE rather than UNCERTAIN.
+        "content": """You are a fact-checking AI assistant. Respond in Czech only.
+        Analyze the claim against the evidence provided.
+        If evidence is insufficient, mark the claim as FALSE.
         
-        You must return your response in exactly this format (including the exact labels):
-        VERDICT: [must be exactly TRUE, FALSE, or UNCERTAIN]
-        CONFIDENCE: [number between 0 and 1]
-        SUPPORTING EVIDENCE: [v češtině vypiš faktické body podporující tvrzení]
-        CONTRADICTING EVIDENCE: [v češtině vypiš faktické body vyvracející tvrzení]
-        EXPLANATION: [v češtině poskytni stručnou a jasnou analýzu]
-        
-        Guidelines for verdicts:
-        - TRUE: Použij pouze když existují silné, přímé důkazy podporující tvrzení
-        - FALSE: Použij když důkazy odporují tvrzení NEBO když není dostatek konkrétních důkazů
-        - UNCERTAIN: Použij pouze když existují protichůdné důkazy stejné váhy
-        
-        When evaluating evidence:
-        - Nedostatek důkazů by měl vést k označení tvrzení jako FALSE
-        - Mimořádná tvrzení vyžadují mimořádné důkazy
-        - Zvažuj důvěryhodnost a konkrétnost poskytnutých důkazů"""
+        Return your response in this format:
+        VERDICT: [TRUE, FALSE, UNCERTAIN]
+        CONFIDENCE: [0.0 to 1.0]
+        SUPPORTING EVIDENCE: [Key points supporting the claim]
+        CONTRADICTING EVIDENCE: [Key points contradicting the claim]
+        EXPLANATION: [Brief analysis in Czech]"""
     },
     {
         "role": "user",
-        "content": f"Claim to verify: {prompt}\n\nAvailable evidence:\n{claims_text}"
+        "content": f"Claim: {prompt}\nEvidence:\n{claims_text}"
     }
 ],
-        temperature=0.3,  # Nižší teplota pro konzistentnější formátování
-        max_tokens=1000
+        temperature=0.2,
+        max_tokens=800
     )
 
     # Parsování odpovědi do strukturovaného formátu
