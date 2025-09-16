@@ -27,6 +27,17 @@ async def scrape_articles(urls: List[str]) -> List[Dict[str, Any]]:
     
     # Seznam pro ukládání výsledků
     scraped_articles = []
+
+    # Filtrace nežádoucích domén a typů souborů
+    blocked_domains = [
+        "seznam.cz", "novinky.cz", "dnesnaukrajine.cz",
+    ]
+    # Vyloučíme URL, které obsahují blokovanou doménu nebo končí na .pdf (case-insensitive)
+    filtered_urls = [
+        url for url in urls 
+        if not any(blocked in url for blocked in blocked_domains) and not url.lower().endswith('.pdf')
+    ]
+    logging.info(f"Filtered URLs count: {len(filtered_urls)} after removing blocked domains.")
     
     # ==============================================================================
     # ZMĚNA JE ZDE: Sjednocená a opravená konfigurace crawleru
@@ -58,10 +69,6 @@ async def scrape_articles(urls: List[str]) -> List[Dict[str, Any]]:
         }
     }
     crawler.navigation_timeout_sec = 120
-    
-    # ==============================================================================
-    # KONEC ZMĚN - ZBYTEK KÓDU JE VÁŠ PŮVODNÍ A JE V POŘÁDKU
-    # ==============================================================================
 
     async def super_aggressive_cookie_handler(page, log):
         """Super agresivní handler pro cookie bannery - zkusí vše možné"""
@@ -727,7 +734,7 @@ async def scrape_articles(urls: List[str]) -> List[Dict[str, Any]]:
         log.info(f"📄 Článek '{cleaned_title}' zpracován. Délka: {len(cleaned_text)} znaků, podezřelá slova: {suspicious_count}")
 
     # Spustíme crawler s poskytnutými URL
-    await crawler.run(urls)
+    await crawler.run(filtered_urls)
     
     # Vrátíme seznam scrapnutých článků
     return scraped_articles

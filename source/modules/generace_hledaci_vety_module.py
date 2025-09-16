@@ -47,6 +47,9 @@ def check_and_generate_search_phrase(user_input: str):
         
         PRAVIDLO: Při nejistotě nastav valid=false!
 
+        UPOZORNĚNÍ: Některé texty mohou obsahovat jak ověřitelná tvrzení, tak i konverzační prvky. Aspoň na první pohled. 
+        V takových případech se zaměř na to, zda je v textu přítomno konkrétní ověřitelné tvrzení. Pokud ano, nastav valid=true a vytvoř odpovídající hledací frázi. Pokud ne, nastav valid=false.
+
         Text: "{user_input}"
         Aktuální datum: {current_date}
 
@@ -55,13 +58,14 @@ def check_and_generate_search_phrase(user_input: str):
         "search_query": "hledací fráze nebo prázdný řetězec",
         "valid": true nebo false,
         "confidence": číslo od 0.0 do 1.0,
+        "explanation": "stručný popis důvodů pro validaci nebo nevalidaci",
         "keywords": ["klíčové slovo 1", "klíčové slovo 2", "klíčové slovo 3", ...]
         }}
 """
 
     try:
         chat_response = client.chat.completions.create(
-            model="mistralai/mistral-7b-instruct",  # Používáme Mistral model přes OpenRouter
+            model="google/gemma-3-27b-it",
             messages=[
                 {
                     "role": "user",
