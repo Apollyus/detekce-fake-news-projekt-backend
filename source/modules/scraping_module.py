@@ -30,7 +30,7 @@ async def scrape_articles(urls: List[str]) -> List[Dict[str, Any]]:
 
     # Filtrace nežádoucích domén a typů souborů
     blocked_domains = [
-        "seznam.cz", "novinky.cz", "dnesnaukrajine.cz",
+        "seznam.cz", "novinky.cz", "dnesnaukrajine.cz", "rss"
     ]
     # Vyloučíme URL, které obsahují blokovanou doménu nebo končí na .pdf (case-insensitive)
     filtered_urls = [

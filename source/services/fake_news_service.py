@@ -20,6 +20,9 @@ Tento modul poskytuje funkce pro:
   a záznam telemetry dat.
 """
 
+# Pokud je True, bude se logovat více detailů pro ladění - NASTAVIT False PRO PRODUKCI!!
+DEBUG_SETTING = True
+
 def is_long_enough_words(text: str, min_words: int) -> bool:
     """
     Zkontroluje, zda text obsahuje alespoň minimální počet slov.
@@ -241,6 +244,11 @@ async def process_fake_news(prompt: str):
             "status": "error",
             "message": f"Neočekávaná chyba: {str(e)}"
         }
+        if DEBUG_SETTING:
+            try:
+                result["filtered_articles"] = article_contents
+            except Exception as e:
+                logger.error(f"Error while adding filtered_articles to result: {str(e)}")
         logger.info(f"Calling log_request_end from 'except Exception:' block for request_id: {request_context.get('request_id', 'UNKNOWN')}")
         # Ensure request_context is passed, even if it's partially formed.
         # If request_context itself is the problem, log_request_start might have failed.

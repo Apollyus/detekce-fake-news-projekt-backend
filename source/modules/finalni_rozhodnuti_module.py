@@ -23,7 +23,7 @@ def evaluate_claim(prompt, found_claims):
     claims_text = "\n".join([f"- {claim}" for claim in found_claims])
     
     response = client.chat.completions.create(
-        model="google/gemma-3-27b-it",
+        model="google/gemini-2.5-flash-lite",
         messages=[
     {
         "role": "system",
