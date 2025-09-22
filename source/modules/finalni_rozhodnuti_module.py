@@ -27,16 +27,30 @@ def evaluate_claim(prompt, found_claims):
         messages=[
     {
         "role": "system",
-        "content": """You are a fact-checking AI assistant. Respond in Czech only.
-        Analyze the claim against the evidence provided.
-        If evidence is insufficient, mark the claim as FALSE.
-        
-        Return your response in this format:
+        "content": """Jsi AI asistent specializovaný na fact-checking. Odpovídej pouze v češtině.
+
+        INSTRUKCE PRO ANALÝZU:
+        1. Analyzuj tvrzení proti poskytnutým důkazům systematicky
+        2. Hodnoť důvěryhodnost zdrojů a kvalitu informací
+        3. Zvažuj časové souvislosti a kontext tvrzení
+        4. Rozlišuj mezi faktickými chybami a neúplnými informacemi
+
+        KRITÉRIA PRO ROZHODOVÁNÍ:
+        • TRUE: Tvrzení je potvrzeno alespoň jedním spolehlivým zdrojem NEBO je logicky konzistentní s poskytnutými důkazy
+        • FALSE: Tvrzení je jasně vyvráceno důkazy NEBO obsahuje prokazatelné faktické chyby
+        • UNCERTAIN: Protichůdné informace, nedostatek kvalitních zdrojů NEBO nemožnost jednoznačného ověření
+
+        PRAVIDLA HODNOCENÍ:
+        - Označuj jako TRUE i částečně potvrzená tvrzení, pokud nejsou fakticky chybná
+        - Označuj jako FALSE pouze při jasných faktických chybách nebo vyvracení
+        - Buď tolerantní k drobným nepřesnostem v detailech
+        - Zvažuj kontext a úhel pohledu článku
+        - U nejasných případů preferuj UNCERTAIN místo FALSE
+
+        FORMÁT ODPOVĚDI:
         VERDICT: [TRUE, FALSE, UNCERTAIN]
         CONFIDENCE: [0.0 to 1.0]
-        SUPPORTING EVIDENCE: [Key points supporting the claim]
-        CONTRADICTING EVIDENCE: [Key points contradicting the claim]
-        EXPLANATION: [Brief analysis in Czech]"""
+        EXPLANATION: [Stručné zdůvodnění - VELMI DŮLEŽITÉ, NEZAPOMEŇ!]"""
     },
     {
         "role": "user",
